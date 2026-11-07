@@ -1,0 +1,3323 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>心智面板 · 情绪与记忆</title>
+<style>
+  /* ===================== 设计令牌 ===================== */
+  :root {
+    --bg: #f4f5f9; --bg-soft: #eceef4; --card: #ffffff; --card-2: #fafbfd;
+    --fg: #1c2028; --muted: #6b7280;
+    --line: #e3e6ed; --line-strong: #d2d7e2;
+    --accent: #6366f1; --accent-2: #8b5cf6; --accent-fg: #ffffff;
+    --accent-soft: rgba(99,102,241,.1);
+    --p: #ec4899; --a: #f59e0b; --d: #3b82f6; --i: #10b981;
+    --ok: #10b981; --warn: #f59e0b; --danger: #ef4444;
+    --shadow-1: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    --shadow-2: 0 6px 18px rgba(16,24,40,.07), 0 2px 6px rgba(16,24,40,.05);
+    --hover: rgba(16,24,40,.045);
+    --radius: 14px; --radius-sm: 10px;
+  }
+  /* 深色：固定暗色（主题切换按钮已删） */
+  html[data-theme="dark"] {
+    --bg: #0e1016; --bg-soft: #171a22; --card: #161a22; --card-2: #1b2029;
+    --fg: #e7e9f0; --muted: #98a1b2;
+    --line: #262c38; --line-strong: #333b4a;
+    --accent: #818cf8; --accent-2: #a78bfa; --accent-fg: #0e1016;
+    --accent-soft: rgba(129,140,248,.14);
+    --hover: rgba(255,255,255,.07);
+    --shadow-1: 0 1px 2px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.4);
+    --shadow-2: 0 6px 18px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.35);
+  }
+
+  /* ===================== 基础 ===================== */
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line-strong); border-radius: 999px;
+    border: 3px solid transparent; background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  body {
+    margin: 0; padding: 18px;
+    background: var(--bg); color: var(--fg);
+    background-image: radial-gradient(900px 320px at 50% -160px, var(--accent-soft), transparent 72%);
+    background-repeat: no-repeat;
+    /* 这里原来有 background-attachment: fixed —— 手机浏览器上它会让滚动逐帧重绘，
+       是出了名的卡顿来源，所以去掉。 */
+    font: 14px/1.65 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: .005em; }
+  h3 { font-size: 15px; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  /* ===================== 顶栏 ===================== */
+  .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+  .top h1 { font-size: 18px; margin-right: auto; display: flex; align-items: center; gap: 6px; }
+  /* 会话下拉会按**最长的选项**撑开（长群名 + 情绪读数能撑到三四百像素），
+     不给上限、又不让它缩，右边的搜索框和「刷新」就会被挤到下一行。 */
+  .top select { min-width: 130px; max-width: 260px; flex: 1 1 auto; }
+  .top input[type="search"] { min-width: 110px; max-width: 200px; flex: 1 1 150px; }
+
+  /* ===================== 页签 ===================== */
+  /* 手机上一行放不下十几个页签：以前会被挤成一列竖排的字，
+     现在改成横向滚动 + 不换行，滑一下就能看到后面的。 */
+  .tabs {
+    display: flex; gap: 6px; margin-bottom: 16px;
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -ms-overflow-style: none;
+    scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+    padding: 2px 2px 4px; margin-left: -2px;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button {
+    flex: 0 0 auto; white-space: nowrap; scroll-snap-align: start;
+    padding: 7px 15px; border-radius: 999px;
+    border-color: transparent; background: transparent;
+    color: var(--muted); font-weight: 500;
+  }
+  .tabs button:hover { background: var(--accent-soft); color: var(--fg); border-color: transparent; }
+  .tabs button.on {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; border-color: transparent;
+    box-shadow: 0 2px 10px rgba(99,102,241,.3);
+  }
+  html[data-theme="dark"] .tabs button.on { color: var(--accent-fg); }
+
+  /* ===================== 卡片 ===================== */
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; box-shadow: var(--shadow-1); margin-bottom: 14px;
+    transition: box-shadow .18s ease, border-color .18s ease;
+  }
+  @media (hover: hover) {
+    .card:hover { box-shadow: var(--shadow-2); border-color: var(--line-strong); }
+  }
+
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .grow { flex: 1 1 auto; }
+
+  /* ===================== 控件 ===================== */
+  button, select, input[type=text], input[type=search], input[type=number], textarea {
+    font: inherit; color: var(--fg); background: var(--card);
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    padding: 7px 12px; outline: none;
+    transition: background .15s, border-color .15s, box-shadow .15s, color .15s;
+  }
+  select { padding-right: 8px; cursor: pointer; }
+  input[type=number] { text-align: center; }
+  input:hover, select:hover, textarea:hover { border-color: var(--line-strong); }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  button { cursor: pointer; font-weight: 500; }
+  button:hover { background: var(--hover); border-color: var(--line-strong); }
+  button:active { transform: translateY(1px); }
+  button.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; border-color: transparent;
+    box-shadow: 0 1px 3px rgba(99,102,241,.32);
+  }
+  html[data-theme="dark"] button.primary { color: var(--accent-fg); }
+  button.primary:hover { filter: brightness(1.07); background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  button.ghost { background: transparent; color: var(--muted); border-color: var(--line); }
+  button.ghost:hover { background: var(--accent-soft); color: var(--fg); }
+  button.danger { color: var(--danger); border-color: var(--line); background: transparent; }
+  button.danger:hover { background: rgba(239,68,68,.1); border-color: var(--danger); }
+  button.on {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; border-color: transparent;
+  }
+  button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+  .muted { color: var(--muted); }
+  .small { font-size: 12.5px; }
+  .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* ===================== 布局 ===================== */
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 14px; }
+  /* 情绪页右列：纵向排列，最后一张卡 flex:1 吃掉剩余高度（底部与曲线卡对齐）；
+     内容变多就自然往下长 —— 绝对定位/固定高度都会在按钮换行时压出 bug。 */
+  .rightcol { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .leftcol { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  /* 事件列表：限高 + 鼠标滚轮滚动（滑块），情绪事件 / 心境事件都不会把页面撑长 */
+  /* 事件卡：两张 flex:1 1 0 —— 均分左列剩余空间；卡内纵向排列。 */
+  .eventcard { display: flex; flex-direction: column; min-height: 0; }
+  /* 事件列表：**填满卡片的剩余高度** —— 卡片被左列拉高时，下面不许留一块空档
+     （报过的「滑动条占不满」：原来限死 260px，卡片却有 500 多 px）。
+     同时留一道 80vh 的兜底上限：内容再长也只是内部滚动，不会把页面撑长。 */
+  .eventlist { flex: 1 1 auto; min-height: 0; max-height: 80vh;
+               overflow-y: auto; overscroll-behavior: contain; }
+  /* 心境迷你条：中点 = 心境基线（气质基线 + 配置偏移） */
+  .moodbar { position: relative; height: 10px; border-radius: 6px;
+             background: var(--bg-soft); border: 1px solid var(--line);
+             margin-top: 10px; overflow: hidden; }
+  .moodbar b { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+               background: var(--line-strong); }
+  .moodbar i { position: absolute; top: 0; bottom: 0; left: 50%; width: 0;
+               background: var(--accent-2); border-radius: 6px; }
+  @media (max-width: 940px) { .grid2 { grid-template-columns: 1fr; } }
+  .bignum { font-size: 34px; line-height: 1.15; font-weight: 700; letter-spacing: -.02em; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+    border-radius: 999px; border: 1px solid transparent;
+    background: var(--bg-soft); font-size: 12px; color: var(--muted); font-weight: 500;
+  }
+  .chip.lock { color: var(--warn); background: rgba(245,158,11,.12); }
+  .chip.pin { color: var(--accent); background: var(--accent-soft); }
+
+  .chartbox { position: relative; }
+  canvas { width: 100%; height: 300px; display: block; cursor: crosshair; touch-action: none; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }
+  .slider { display: grid; grid-template-columns: 62px 1fr 62px; gap: 8px; align-items: center; margin: 6px 0; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+
+  /* ===================== 列表项 ===================== */
+  .memitem {
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    padding: 11px 13px; margin-bottom: 8px; background: var(--card-2);
+    transition: border-color .15s, background .15s, box-shadow .15s;
+  }
+  @media (hover: hover) {
+    .memitem:hover { border-color: var(--accent); background: var(--card); box-shadow: var(--shadow-1); }
+  }
+  .memitem .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+  .memitem .body { white-space: pre-wrap; word-break: break-word; }
+  .memitem textarea { width: 100%; min-height: 54px; margin-top: 6px; }
+
+  .tip {
+    position: absolute; pointer-events: none; background: var(--card); color: var(--fg);
+    border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 9px;
+    font-size: 12px; box-shadow: var(--shadow-2); display: none; z-index: 5; white-space: nowrap;
+  }
+  .actionbar {
+    margin-top: 10px; padding: 11px; border-radius: var(--radius-sm);
+    border: 1px dashed var(--accent); background: var(--accent-soft);
+  }
+  .err { color: var(--danger); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 99; font-size: 13px;
+    background: var(--fg); color: var(--bg); padding: 9px 18px; border-radius: 999px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.2);
+    opacity: 0; pointer-events: none;
+    transform: translateX(-50%) translateY(10px);
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .empty { padding: 26px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+
+  /* 切页签时轻轻淡入，不要生硬地闪一下 */
+  @keyframes viewIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+  .view-in { animation: viewIn .18s ease-out; }
+
+  body.simple-mode .tabs button[data-adv="1"] { display: none; }
+
+  /* ===================== 窄屏 ===================== */
+  @media (max-width: 640px) {
+    body { padding: 12px 10px; }
+    .card { padding: 13px; border-radius: 12px; }
+    .top { gap: 6px; }
+    .top h1 { font-size: 16px; }
+    .top select { min-width: 0 !important; flex: 1 1 130px; }
+    .top input[type="search"] { min-width: 0 !important; flex: 1 1 130px; }
+    .bignum { font-size: 28px; }
+    canvas { height: 240px; }
+    .tabs { margin-bottom: 12px; }
+  }
+
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>🧠 心智面板</h1>
+    <span class="small muted" id="session-count">会话</span>
+    <!-- 会话下拉 + 搜索 + 刷新捆在同一个 **nowrap** 容器里：
+         一窄它们**整组**换行（刷新依旧在搜索右边），
+         而不是把「刷新」一个人丢到下一行去。 -->
+    <div class="row" id="top-controls" style="flex-wrap:nowrap;gap:8px;min-width:0">
+      <select id="session" title="选择要看的群聊或私聊"></select>
+      <!-- 会话一多，原生下拉要翻半天：按「名称 / key」就地过滤它（清空即恢复全量）。
+           过滤逻辑在 applySessionFilter()，当前选中的那条永远留着不藏。 -->
+      <input type="search" id="session-search" class="small" placeholder="搜索会话"
+             title="按名称或 key 过滤会话；当前选中的那条会一直留着">
+      <button id="refresh" class="ghost" title="重新拉取数据">刷新</button>
+    </div>
+    <!-- 只在出问题时才出现；正常时不占屏幕 -->
+    <span id="api-status" class="small err" style="flex-basis:100%;display:none"></span>
+  </div>
+
+
+  <div class="tabs">
+    <button id="tab-emotion" class="on">情绪曲线</button>
+    <button id="tab-memory">长期记忆</button>
+    <button id="tab-graph">记忆图谱</button>
+    <button id="tab-settings">通用配置</button>
+  </div>
+
+
+
+  <!-- ================= 情绪 ================= -->
+  <div id="view-emotion">
+    <!-- 数据库坏了要说大声一点：这不是「曲线不好看」，是记忆/曲线/词表全废 -->
+    <div class="card" id="db-alert" style="display:none;border-color:#e5484d;background:rgba(229,72,77,.10)"></div>
+    <div class="grid2">
+      <!-- 左列：曲线卡 + 「最近的情绪事件」。事件是**独立卡片**（不合并进曲线卡），
+           放进曲线卡下方那块空白里；flex:1 让它吃掉剩余高度、底部与右列对齐。 -->
+      <div class="leftcol">
+        <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <h2 id="cur-title">此刻心情</h2>
+          <div class="row" id="range-btns"></div>
+        </div>
+        <div class="chartbox">
+          <canvas id="chart"></canvas>
+          <div class="tip" id="tip"></div>
+        </div>
+        <div class="small muted" id="curve-note" style="margin-top:6px"></div>
+        <div class="legend small">
+          <span><i style="background:var(--p)"></i>愉悦 P</span>
+          <span><i style="background:var(--a)"></i>唤醒 A</span>
+          <span><i style="background:var(--d)"></i>掌控 D</span>
+          <span><i style="background:var(--i)"></i>强度 I（右轴 0~1）</span>
+          <span class="muted">虚线 = 气质基线 · 灰竖线 = 情绪事件</span>
+        </div>
+        <div id="pickbar" class="actionbar small" style="display:none"></div>
+      </div>
+
+      <!-- 最近的情绪事件：独立卡片。两张事件卡 flex:1 1 0 —— **均分**左列剩余空间 -->
+      <div class="card eventcard" id="events-card" style="flex:1 1 0;min-height:0">
+        <h3 style="margin-bottom:8px">最近的情绪事件</h3>
+        <div id="events" class="small eventlist"></div>
+      </div>
+
+      <!-- 最近心境事件：只记里程碑（换词 / 手动 / 重置 / 漂移），和上面那张**均分**空间；
+           列表限高 + 鼠标滚轮滚动，内容多也不会把页面撑长。 -->
+      <div class="card eventcard" id="mood-events-card" style="flex:1 1 0;min-height:0">
+        <h3 style="margin-bottom:8px">最近心境事件</h3>
+        <div id="mood-events" class="small eventlist"></div>
+      </div>
+      </div><!-- /leftcol -->
+
+      <!-- 右列：纵向 flex。卡片按 此刻心情 → 心境 → 操纵情绪 排，
+           最后一张 flex:1 吃掉剩余高度 —— 底部和左边曲线卡对齐；
+           内容变多（一键改成的按钮换行等）就自然往下长，不会互相压。 -->
+      <div class="rightcol">
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:flex-start">
+            <div>
+              <div class="bignum" id="cur-emoji">🙂</div>
+              <div id="cur-label" style="font-size:17px;font-weight:650">平静</div>
+              <div class="small muted" id="cur-level">强度 —</div>
+            </div>
+            <div style="text-align:right">
+              <div class="small muted">心境</div>
+              <div id="mood-label" style="font-weight:600">平静</div>
+              <div class="small muted" id="idle">—</div>
+            </div>
+          </div>
+          <div class="small" style="margin-top:10px">
+            <div class="row" style="gap:10px;align-items:flex-start">
+              <div style="flex:1 1 0;min-width:0">
+                <div class="muted">情绪起因</div>
+                <div id="cur-cause">—</div>
+              </div>
+              <div style="flex:1 1 0;min-width:0">
+                <div class="muted">心境起因</div>
+                <div id="mood-cause">—</div>
+              </div>
+            </div>
+          </div>
+          <div id="crisis" class="small err" style="display:none;margin-top:8px">⚠️ 当前处于安全优先状态</div>
+        </div>
+
+        <!-- 心境卡（此刻心情下方的空地）：独立一块，正常文档流 ——
+             下面「一键改成」的按钮再多也不会压到它。 -->
+        <div class="card" id="mood-card">
+          <div class="row" style="justify-content:space-between;align-items:flex-start">
+            <div>
+              <div class="small muted">心境（相对基线）</div>
+              <div style="font-size:17px;font-weight:650"><span id="mood-emoji">🌤</span> <span id="mood-name">平静</span></div>
+              <div class="small muted" id="mood-trend">→ 基本稳定</div>
+            </div>
+            <div style="text-align:right">
+              <div class="small muted">偏移</div>
+              <div class="mono" id="mood-mag">0.00</div>
+              <div class="small muted" id="mood-since">—</div>
+            </div>
+          </div>
+          <!-- 迷你条：中点 = 心境基线（没事时停的地方），右 = 更好，左 = 更差 -->
+          <div class="moodbar" title="相对基线的偏移：中点是基线（没事时停的地方），往右更好、往左更差">
+            <b></b><i id="moodbar-fill"></i>
+          </div>
+          <div class="small muted" style="margin-top:8px">判定依据</div>
+          <div class="small" id="mood-reason">—</div>
+        </div>
+
+        <div class="card" style="flex:1 1 auto">
+          <h3 style="margin-bottom:8px">操纵情绪</h3>
+          <div class="slider"><span class="small">愉悦 P</span><input type="range" id="sp" min="-1" max="1" step="0.01" value="0"><span class="mono small" id="spv">0.00</span></div>
+          <div class="slider"><span class="small">唤醒 A</span><input type="range" id="sa" min="-1" max="1" step="0.01" value="0"><span class="mono small" id="sav">0.00</span></div>
+          <div class="slider"><span class="small">掌控 D</span><input type="range" id="sd" min="-1" max="1" step="0.01" value="0"><span class="mono small" id="sdv">0.00</span></div>
+          <!-- 强度是**主动产物**：能直接拖，冻结时照样能拖（只是不衰减），平时自己往回退 -->
+          <div class="slider"><span class="small">强度 I</span><input type="range" id="si" min="0" max="1" step="0.01" value="0.3" title="情绪强度 0~1，可单独调节；会话冻结时不衰减"><span class="mono small" id="siv">30%</span></div>
+          <!-- 衰减最低值：强度最后会落回这个基准值（配置 emotion.intensity.floor） -->
+          <div class="slider"><span class="small">基准值</span><input type="range" id="sf" min="0" max="1" step="0.01" value="0.15" title="强度衰减到的最低值（0~1）"><span class="mono small" id="sfv">15%</span></div>
+          <div class="row" id="mood-presets" style="margin-top:10px;gap:6px"></div>
+          <div class="row" style="margin-top:8px">
+            <button class="primary" id="apply-set">设为此刻心情</button>
+            <button class="ghost" id="load-cur">读取当前值</button>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="freeze">🧊 冻结</button>
+            <button class="ghost" id="reset">重置情绪</button>
+            <button class="danger" id="clear-curve">清空曲线</button>
+          </div>
+          <div class="small muted" style="margin-top:8px">
+            冻结后情绪与<b>强度</b>一起停住：聊天不会改变它，强度也不再衰减、曲线从冻结点起走平；面板上的手动设定仍然生效。<br>
+            <b>重置情绪只把当前值归零，历史与曲线保留</b>（要清记录请用「清空曲线」）。
+          </div>
+        </div>
+
+        <!-- 调节心境：和「操纵情绪」**不是同一套** ——
+             · 维度是「相对心境基线的偏移」（底色 / 能量 / 底气），读数带正负号；
+             · 一键改成是**心境描述词**（后端 mood_words 是唯一真源），不是情绪原型锚点；
+             · 最后一张 flex:1，底部与左列对齐。 -->
+        <div class="card" id="mood-ops" style="flex:1 1 auto">
+          <div class="row" style="justify-content:space-between;align-items:flex-start">
+            <div>
+              <h3 style="margin-bottom:4px">调节心境</h3>
+              <!-- word-break:keep-all —— 中文默认会在任意字之间换行，
+                   原来断成了「…窗口内持 / 续推进」；keep-all 只在空格与标点处断，
+                   实在挤不下了再用 overflow-wrap 兜底，不会撑破卡片。 -->
+              <div class="small muted" style="word-break:keep-all;overflow-wrap:break-word">心境 = 基线 + 下面三个<b>偏移</b> · 6 小时半衰期 · 30 分钟对话窗口内持续推进</div>
+            </div>
+          </div>
+          <!-- 状态提示独占一行。原来它挤在标题右边（max-width:48% + text-align:right）：
+               卡片一窄 .row 就换行，提示块被顶到下一行还保持右对齐 ——
+               第二行「基准附近」看上去就错位了。 -->
+          <div class="small muted" id="mood-ops-hint" style="margin-top:4px;word-break:keep-all;overflow-wrap:break-word">—</div>
+          <div class="slider"><span class="small">底色</span><input type="range" id="smp" min="-0.6" max="0.6" step="0.02" value="0" title="很糟 ↔ 很好（相对基线）"><span class="mono small" id="smpv">+0.00</span></div>
+          <div class="slider"><span class="small">能量</span><input type="range" id="sma" min="-0.6" max="0.6" step="0.02" value="0" title="提不起劲 ↔ 有劲（相对基线）"><span class="mono small" id="smav">+0.00</span></div>
+          <div class="slider"><span class="small">底气</span><input type="range" id="smd" min="-0.6" max="0.6" step="0.02" value="0" title="没底 ↔ 有底（相对基线）"><span class="mono small" id="smdv">+0.00</span></div>
+          <!-- 一键改成：心境描述词（不是情绪原型那 23 个锚点） -->
+          <div class="row" id="mood-words" style="margin-top:10px;gap:6px"></div>
+          <div class="row" style="margin-top:8px">
+            <button class="primary" id="mood-apply">设为此刻心境</button>
+            <button class="ghost" id="mood-load">读取当前值</button>
+            <button id="mood-freeze">🧊 冻结心境</button>
+            <button class="danger" id="mood-reset">重置心境</button>
+          </div>
+          <div class="small muted" style="margin-top:8px">
+            描述词 = 把心境整体挪到那个「底色」（<b>立刻换词</b>、不等 300 秒驻留）；滑杆改的是<b>偏移量</b>，松手才提交。
+            <b>冻结心境的判定和情绪冻结一致</b>：冻住后推进 / 衰减 / 换词 / 漂移全停，
+            手动调仍然生效，情绪与强度照常走；手动调不算心境起因。
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <div class="card">
+      <div class="row">
+        <h3 style="margin-right:8px">管理与维护</h3>
+        <span class="small muted" id="mg-note"></span>
+        <span class="grow"></span>
+        <button class="ghost small" id="mg-reload">刷新</button>
+      </div>
+      <div class="row" style="margin-top:10px" id="mg-stats"></div>
+      <div class="small muted" style="margin-top:8px" id="mg-db"></div>
+    </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:8px">数据维护</h3>
+        <div class="row">
+          <label class="small muted">曲线每会话保留 <input type="number" id="mg-keep" value="1500" min="50" max="100000" style="width:90px"> 点</label>
+          <button class="ghost small" id="mg-prune-samples">压缩曲线</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="ghost small" id="mg-clear-lexicon">清空词表命中</button>
+          <button class="ghost small" id="mg-freeze">冻结全部会话</button>
+          <button class="ghost small" id="mg-thaw">解冻全部会话</button>
+          <button class="ghost small" id="mg-vacuum">整理数据库</button>
+        </div>
+        <div class="small muted" style="margin-top:8px">
+          压缩曲线只丢最旧的采样点，情绪当前值不受影响；整理数据库会重写文件、通常能瘦一圈。
+        </div>
+      </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:8px">记忆清理</h3>
+      <div class="row">
+        <button class="danger small" id="mg-mem-session">清空本会话记忆</button>
+        <button class="danger small" id="mg-mem-all">清空全部记忆</button>
+        <span class="grow"></span>
+        <span class="small muted">删除不可撤销，都会让你再点一次确认</span>
+      </div>
+      <div class="small muted" style="margin-top:12px">按条件清理（符合条件的全部删掉）：</div>
+      <div class="row" style="margin-top:6px">
+        <label class="small muted">类型 <select id="mg-kind"></select></label>
+        <label class="small muted">重要度不超过 <input type="number" id="mg-imp" step="0.1" min="0" max="1" value="0.4" style="width:80px"></label>
+        <label class="small"><input type="checkbox" id="mg-never"> 只看从没被想起过的</label>
+        <button class="danger small" id="mg-prune">按条件清理</button>
+      </div>
+      <div class="small muted" style="margin-top:8px" id="mg-result"></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <h3 style="margin-right:8px">隐私与数据</h3>
+        <span class="small muted" id="pv-note"></span>
+        <span class="grow"></span>
+        <button class="ghost small" id="pv-reload">刷新</button>
+        <button class="primary small" id="pv-save">保存设置</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="small"><input type="checkbox" id="pv-selfdel"> 允许本人用 /忘我 删掉自己的数据</label>
+        <label class="small"><input type="checkbox" id="pv-consent"> 需要同意才采集</label>
+        <label class="small"><input type="checkbox" id="pv-export"> 允许管理员导出档案</label>
+      </div>
+      <div class="small muted" style="margin-top:6px">
+        拒绝名单里的人**既不采集也不注入** —— 她不会记住他，也不会把他记得的事说给别人。
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input type="text" id="pv-uid" placeholder="用户 ID（支持 平台:uid）" style="min-width:200px">
+        <button class="danger small" id="pv-deny">加入拒绝名单</button>
+        <button class="ghost small" id="pv-allow">移出拒绝名单</button>
+        <span class="grow"></span>
+        <button class="ghost small" id="pv-exportbtn">导出这个人的档案</button>
+        <button class="danger small" id="pv-forget">删掉这个人的数据</button>
+      </div>
+      <div id="pv-denied" class="row" style="margin-top:10px"></div>
+      <div class="small muted" style="margin-top:8px" id="pv-result"></div>
+      <textarea id="pv-json" style="width:100%;min-height:120px;margin-top:8px;display:none"></textarea>
+    </div>
+
+      <!-- 备份与迁移：设置 + 全部记忆（含通用/全局）。记忆图谱是按记忆现算的，
+           记忆导进去了图就跟着回来了，不用单独导一份。 -->
+      <div class="card" id="transfer-card">
+        <div class="row">
+          <h3 style="margin-right:8px">备份与迁移</h3>
+          <span class="small muted" id="bt-note">搬家用：设置 + 全部记忆（含通用）打进一个文件</span>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="primary small" id="bt-export">导出备份</button>
+          <button class="ghost small" id="bt-download">下载到本地</button>
+          <span class="grow"></span>
+          <label class="small"><input type="checkbox" id="bt-replace"> 先清空记忆再导入</label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input type="file" id="bt-file" accept=".json,application/json" style="max-width:320px">
+          <button class="ghost small" id="bt-import">导入备份</button>
+          <span class="grow"></span>
+          <span class="small muted">导入来源按这个顺序找：选中的文件 → 下面的粘贴 → 文件名</span>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <input type="text" id="bt-path" placeholder="或者填服务端 exports/ 下的文件名（免上传）" style="min-width:320px">
+        </div>
+        <div class="small muted" style="margin-top:6px">
+          <b>目标机器拷不进文件时</b>：这边「导出备份」→「下载到本地」（或复制下面框里的整份 JSON）→
+          在目标机器上<b>选择这个文件</b>或<b>粘贴进下面的框</b> → 导入。<b>记忆图谱按记忆现算</b> —— 记忆进去了，图就回来了。<br>
+          <b>备份里绑的会话这台机器还没聊过也不要紧</b>：记忆照存、不会被清掉，那个会话第一条消息来了自动读到。
+        </div>
+        <textarea id="bt-json" spellcheck="false"
+          placeholder="导出后的完整备份 JSON 会出现在这里（可复制）；也可以把别处的备份粘贴进来再点「导入备份」"
+          style="width:100%;min-height:140px;margin-top:8px;display:none"></textarea>
+        <div class="small muted" style="margin-top:8px" id="bt-result"></div>
+      </div>
+  </div>
+
+  <div id="view-memory" style="display:none">
+    <div class="card">
+      <div class="row">
+        <input type="search" id="mq" class="grow" placeholder="搜索记忆内容或关键词…">
+        <select id="mkind">
+          <option value="">全部类型</option>
+          <option value="fact">事实</option>
+          <option value="preference">喜好</option>
+          <option value="event">经历</option>
+          <option value="promise">约定</option>
+          <option value="relation">关系</option>
+        </select>
+        <select id="msrc" title="手动 = 面板/指令加的；自动 = AI 从对话里抽的">
+          <option value="">手动+自动</option>
+          <option value="manual">仅手动</option>
+          <option value="auto">仅自动抽取</option>
+        </select>
+        <select id="mflag">
+          <option value="">全部</option>
+          <option value="sensitive">仅敏感</option>
+        </select>
+        <button id="msearch" class="primary">查询</button>
+      </div>
+      <div id="mstats" class="small muted" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:8px">手动添加一条</h3>
+      <div class="row">
+        <input type="text" id="madd" class="grow" placeholder="例如：他喜欢喝冰美式">
+        <select id="maddkind">
+          <option value="fact">事实</option>
+          <option value="preference">喜好</option>
+          <option value="event">经历</option>
+          <option value="promise">约定</option>
+          <option value="relation">关系</option>
+        </select>
+        <label class="small muted" title="勾上就是所有会话都能用的通用记忆；不勾则挂在顶部选中的会话上">
+          <input type="checkbox" id="maddglobal"> 通用
+        </label>
+        <button id="maddbtn" class="primary">添加</button>
+      </div>
+      <div class="small muted" style="margin-top:6px">
+        含证件号、住址、学校等敏感内容的会自动被限成「仅在本人私聊可见」。
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h3>AI 抽取到的记忆</h3>
+        <div class="row">
+          <button class="ghost" id="mprev">上一页</button>
+          <span class="small muted" id="mpage">—</span>
+          <button class="ghost" id="mnext">下一页</button>
+        </div>
+      </div>
+      <div class="row" id="mbulk" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+        <label class="small" style="display:flex;align-items:center;gap:5px">
+          <input type="checkbox" id="mselectall"> 全选本页
+        </label>
+        <span class="small muted" id="mselinfo">未选中任何条目</span>
+        <span class="grow"></span>
+        <button class="ghost small" id="mbulk-global">设为通用</button>
+        <button class="ghost small" id="mbulk-session">设为当前会话</button>
+        <button class="danger small" id="mbulk-del">删除选中</button>
+      </div>
+      <div id="mlist" style="margin-top:10px"></div>
+    </div>
+  </div>
+  
+  <!-- ================= 记忆图谱 ================= -->
+  <div id="view-settings" style="display:none">
+<div class="card" id="st-settings-card">
+      <div class="row">
+        <h3 style="margin-right:8px">通用配置</h3>
+        <span class="small muted" id="st-note"></span>
+        <span class="grow"></span>
+        <button class="ghost small" id="st-fold">折叠</button>
+        <button class="ghost small" id="st-reload">恢复默认</button>
+        <button class="primary small" id="st-save">保存改动</button>
+      </div>
+      <div class="small muted" style="margin-top:6px">
+        这里就是插件配置本身，改完点保存会写回配置文件（和 WebUI 的「配置」页是同一份，两边都能改）。
+        隐私设置存在插件数据目录里，优先级更高，不写回这里。
+      </div>
+      <div class="small muted" id="st-dirty" style="margin-top:4px"></div>
+      <div id="st-groups"></div>
+    </div>
+  </div>
+
+  <div id="view-graph" style="display:none">
+    <div class="card">
+      <div class="row">
+        <h3 style="margin-right:8px">记忆图谱</h3>
+        <span class="small muted" id="gp-note"></span>
+        <span class="grow"></span>
+        <label class="small muted">类型 <select id="gp-kind"></select></label>
+        <label class="small muted">最多 <input type="number" id="gp-limit" value="260" min="10" max="800" style="width:80px"> 条</label>
+        <button class="ghost small" id="gp-apply">应用</button>
+        <button class="ghost small" id="gp-reload">重新布局</button>
+      </div>
+      <div class="row" style="margin-top:10px" id="gp-stats"></div>
+      <div class="small muted" style="margin-top:6px">
+        记忆是实心圆（越大越重要），关键词是浅色小点，人（方块）和会话（三角）挂在边上。
+        同一个关键词串起来的记忆自动聚成一簇，虚线圆圈就是簇的范围。可以拖动节点、滚轮缩放、拖空白平移。
+        「最多 N 条」决定加载多少条记忆 —— 条数越多，能聚出来的簇越全；改完点「应用」（或直接回车）生效。
+      </div>
+    </div>
+
+    <div class="card" style="position:relative">
+      <div class="row">
+        <button class="ghost small" id="gp-select">多选管理</button>
+        <span class="small muted" id="gp-selcount">点节点看详情；开多选后点节点即可勾选，点簇圈可以整簇选中</span>
+        <span class="grow"></span>
+        <button class="ghost small" id="gp-selall">全选</button>
+        <button class="ghost small" id="gp-selnone">清空选择</button>
+      </div>
+      <div class="row" id="gp-actions" style="margin-top:6px;display:none">
+        <span class="grow"></span>
+        <button class="danger small" id="gp-del">删除选中</button>
+      </div>
+      <div class="chartbox" style="margin-top:10px">
+        <canvas id="graph" style="height:460px;cursor:grab"></canvas>
+        <div class="tip" id="gp-tip"></div>
+      </div>
+      <div class="legend small">
+        <span><i style="background:var(--accent)"></i>记忆</span>
+        <span><i style="background:var(--muted)"></i>关键词</span>
+        <span><i style="background:var(--a)"></i>人</span>
+        <span><i style="background:var(--d)"></i>会话</span>
+        <span class="muted">虚线 = 自动聚出来的簇</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:8px">选中的记忆</h3>
+      <div id="gp-detail" class="small muted">点图上的任意一个实心圆，这里会显示它的内容、类型和来源。</div>
+    </div>
+  </div>
+</div>
+
+<div class="small muted" style="text-align:center;padding:16px 0 6px">
+  AI 心智 · 情绪与记忆（精简版）　by 挽风随行+DSH(主代码编写)、冰与火之歌
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="/api/plugin/page/bridge-sdk.js"></script>
+<script>
+(function () {
+  "use strict";
+  var PLUGIN = "astrbot_plugin_ai_mind";
+
+  var state = {
+    session: "", sessions: [], hours: 72, data: null,
+    pick: null, memOffset: 0, memLimit: 20, memTotal: 0, view: "emotion", selected: {},
+    privacy: null,
+    settings: null, settingsValues: {}, manage: null,
+    graph: null, graphNodes: [], graphEdges: [], graphClusters: [], graphIndex: {},
+    graphSelected: {}, graphClusterHit: [], graphSelect: false,
+    graphView: { scale: 1, x: 0, y: 0 }, graphDrag: null, graphPicked: null
+  };
+
+  // 排查用：控制台里敲 __aiMindState 能看到当前状态（和 __aiMindDiag 一个路子）
+  window.__aiMindState = state;
+
+  // ---------- 工具 ----------
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function toast(msg) {
+    var el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.classList.remove("show"); }, 1800);
+  }
+  function fmtTime(t) {
+    var d = new Date(t * 1000);
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function fmtNum(v, n) { return (v >= 0 ? "+" : "") + Number(v).toFixed(n == null ? 2 : n); }
+
+  // ---------- 请求 ----------
+  // 页面跑在不透明源的沙箱 iframe 里，自己发 fetch 会被判成跨域失败，
+  // 所以首选宿主注入的 postMessage 桥。
+  //
+  // 但桥接受的端点前缀在不同 AstrBot 版本里并不完全一致（有 /api/plug/ 这套，
+  // 也有 /plugins/extensions/ 这套），而且父窗口可能自己再补一个 /api。
+  // 与其赌一个，不如第一次调用时把候选地址逐个试过去，谁通用谁，之后固定。
+  // 注意顺序：第一位是"只给插件相对路径，前缀由宿主自己补"。
+  // 实测（AstrBot v4.28.1）宿主会在我给的地址前面再拼一次 /api/plug/，
+  // 所以传绝对路径会被拼成 /api/plug/api/plug/... 而被判成"未找到该路由"。
+  // 注意第一位是**空前缀**：实测宿主会自己补 /api/plug/<插件名>/，
+  // 我再带上插件名就会变成 .../astrbot_plugin_ai_mind/astrbot_plugin_ai_mind/...，
+  // 具体路由匹配不上，只能靠兜底路由按后缀接 —— 多级路径（如 memory/batch）就会漏。
+  var PREFIXES = [
+    "",
+    PLUGIN + "/",
+    "dsh/" + PLUGIN + "/",
+    "/api/plug/" + PLUGIN + "/",
+    "/plugins/extensions/" + PLUGIN + "/",
+    "/api/plugins/extensions/" + PLUGIN + "/",
+    "/plug/" + PLUGIN + "/"
+  ];
+  var resolved = null;
+  var attemptLog = [];
+  var apiBroken = false;
+  var failureSummary = "";
+
+  function unwrap(res) {
+    if (res && typeof res === "object" && res.status === "error") {
+      throw new Error(res.message || "接口返回错误");
+    }
+    if (res && typeof res === "object" && res.data && res.status === "ok") return res.data;
+    if (typeof res === "string") {
+      // 有些版本的中转层会把最外层 data 再拆一层 —— 图片接口返回的正好就是
+      // "data:image/jpeg;base64,..."，那种情况别当成「登录页」报错。
+      if (res.indexOf("data:image/") === 0) return { image: res };
+      throw new Error("返回的不是 JSON，可能是登录页：" + res.slice(0, 80));
+    }
+    return res;
+  }
+
+  function summarizeLog(limit) {
+    var head = attemptLog.slice(0, limit || 3);
+    var text = head.join(" ｜ ");
+    if (attemptLog.length > head.length) {
+      text += " ｜ （共 " + attemptLog.length + " 种组合都失败）";
+    }
+    return text;
+  }
+
+  function setStatus(text) {
+    // 只在出问题时说话。原来这里常驻一行「接口正常：postMessage → /api/plug/…」，
+    // 一切正常的时候不该占屏幕；但坏了必须看得见，所以错误照旧显示。
+    var el = $("api-status");
+    if (!el) return;
+    if (!text) {
+      el.textContent = "";
+      el.style.display = "none";
+      return;
+    }
+    el.textContent = text;
+    el.style.display = "";
+    el.className = "small err";
+  }
+
+  function viaBridge(prefix, path, method, body, query) {
+    var bridge = window.AstrBotPluginPage;
+    if (!bridge || typeof bridge.apiGet !== "function") {
+      return Promise.reject(new Error("宿主没有注入 AstrBotPluginPage"));
+    }
+    var endpoint = prefix + path;
+    // 查询参数必须走 apiGet 的第二个参数，绝不能拼进 endpoint。
+    // 宿主会校验 endpoint，带 ? 的一律直接判成 "Plugin bridge endpoint is invalid."
+    var call = (method === "GET")
+      ? bridge.apiGet(endpoint, query || {})
+      : bridge.apiPost(endpoint, body || {});
+    return Promise.resolve(call);
+  }
+
+  function viaFetch(prefix, path, method, body, query) {
+    var origin = window.location.origin;
+    if (!origin || origin === "null") {
+      return Promise.reject(new Error("页面是不透明源，无法直接发起请求"));
+    }
+    // 候选前缀可能是"插件相对路径"（不以 / 开头），拼 origin 时要补一个斜杠
+    // 空前缀是给"宿主自己补前缀"用的；真要自己发请求时得把那段补回来
+    var suffix = prefix
+      ? (prefix.charAt(0) === "/" ? prefix : "/" + prefix)
+      : "/api/plug/" + PLUGIN + "/";
+    var url = origin + suffix + path;
+    var pairs = [];
+    if (query) {
+      Object.keys(query).forEach(function (key) {
+        var value = query[key];
+        if (value === undefined || value === null || value === "") return;
+        pairs.push(encodeURIComponent(key) + "=" + encodeURIComponent(value));
+      });
+    }
+    if (pairs.length) url += "?" + pairs.join("&");
+    return fetch(url, {
+      method: method || "GET",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+  }
+
+  function attempt(combo, path, method, body, query) {
+    var fn = combo.transport === "bridge" ? viaBridge : viaFetch;
+    return fn(combo.prefix, path, method, body, query).then(unwrap);
+  }
+
+  function request(path, method, body, query) {
+    if (resolved) return attempt(resolved, path, method, body, query);
+    // 已经确认全都不通：不再把候选重跑一遍，直接复用上次的诊断
+    if (apiBroken) return Promise.reject(new Error(failureSummary));
+
+    var combos = [];
+    PREFIXES.forEach(function (prefix) {
+      combos.push({ prefix: prefix, transport: "bridge" });
+      combos.push({ prefix: prefix, transport: "fetch" });
+    });
+
+    var index = 0;
+    function probe() {
+      if (index >= combos.length) {
+        apiBroken = true;
+        failureSummary = summarizeLog();
+        setStatus("接口不通 —— " + failureSummary, true);
+        return Promise.reject(new Error(failureSummary));
+      }
+      var combo = combos[index++];
+      return attempt(combo, "sessions", "GET").then(function (data) {
+        if (!data || typeof data !== "object" || !Array.isArray(data.sessions)) {
+          throw new Error("返回内容不是会话列表");
+        }
+        resolved = combo;
+        // 一切正常就不占屏幕（用户嫌那行碍眼）。但走的是哪条路仍然记下来：
+        // 出错时能写进提示，排查时在控制台敲 __aiMindDiag 也能看到。
+        window.__aiMindDiag = { transport: combo.transport, prefix: combo.prefix };
+        if (path === "sessions" && (method || "GET") === "GET") return data;
+        return attempt(combo, path, method, body, query);
+      }).catch(function (err) {
+        var why = (err && err.message) ? err.message : String(err);
+        attemptLog.push(combo.transport + " " + combo.prefix + " → " + why);
+        return probe();
+      });
+    }
+    return probe();
+  }
+
+  // 一条会话 = 一个 <option>。抽出来是为了「列表重建」和「搜索过滤」走同一份文案，
+  // 否则两处各拼一次，改了标签格式就会漏一处。
+  function sessionOption(s) {
+    var opt = document.createElement("option");
+    opt.value = s.key;
+    // 下拉里的强度读**新的强度模型**（emotion_intensity = 会话里那个可调、会衰减的状态）
+    var strength = (typeof s.emotion_intensity === "number" && !isNaN(s.emotion_intensity))
+      ? (intensityPercent(s.emotion_intensity) + "%")
+      : (s.emotion_level + "/5");
+    // 「（未激活）」= 这台机器上还没在这个会话里跟她说过话（多半是从备份导进来的）。
+    // 下拉跟下面每一张卡绑定，所以它**必须看得见** —— 标出来，别让人以为记忆丢了。
+    var mark = (s.active === false) ? "（未激活）" : "";
+    opt.textContent = s.label + mark
+      + (s.emotion ? "　" + s.emotion_emoji + s.emotion + " " + strength : "")
+      + (s.frozen ? "　🧊" : "");
+    return opt;
+  }
+
+  // ---------- 顶栏：会话搜索 ----------
+  // 会话一多，原生下拉要翻半天。按「名称 / key」子串过滤，命中的才留在下拉里；
+  // **当前选中的那条永远留着** —— 藏掉它，闭合状态的下拉框会显示成一片空白。
+  // 数据源是 state.sessions（不是下拉里现存的 option）：这样清空关键字就是真的恢复全量，
+  // 不会因为上一次过滤已经把某些 option 删掉而回不来。
+  function applySessionFilter() {
+    var sel = $("session");
+    var box = $("session-search");
+    if (!sel || !box || !state.sessions) return;
+    var q = String(box.value || "").trim().toLowerCase();
+    var current = String(sel.value || state.session || "");
+    var hits = 0;
+    var keep = [];
+    state.sessions.forEach(function (s) {
+      // 搜「未激活」也能筛出它们 —— 和下拉里的标记用的是同一个词
+      var hay = (String(s.label || "") + " " + String(s.key || "")
+        + (s.active === false ? " 未激活（未激活）" : "")).toLowerCase();
+      var hit = !q || hay.indexOf(q) >= 0;
+      if (hit) hits++;
+      if (hit || s.key === current) keep.push(s);
+    });
+    sel.innerHTML = "";
+    keep.forEach(function (s) { sel.appendChild(sessionOption(s)); });
+    if (q && !hits) {
+      var none = document.createElement("option");
+      none.value = "";
+      none.disabled = true;
+      none.textContent = "没有匹配的会话";
+      sel.appendChild(none);
+    }
+    if (current) sel.value = current;
+    box.title = q
+      ? ("匹配 " + hits + " / " + state.sessions.length + " 个会话")
+      : "按名称或 key 过滤会话；当前选中的那条会一直留着";
+  }
+
+  function loadSessions() {
+    return request("sessions", "GET").then(function (data) {
+      state.sessions = (data && data.sessions) || [];
+      var sel = $("session");
+      // 只有选项真的变了才重建。每次进来都把 <select> 清空重填，会把用户
+      // 当前的选择顶掉 —— 表达模块的状态筛选踩过同一个坑（选完自己跳回去）。
+      var sig = state.sessions.map(function (s) {
+        // 强度进签名：别的会话强度变了，下拉里的数字也要跟着换
+        return s.key + "|" + s.label + "|" + (s.emotion || "") + "|"
+          + (typeof s.emotion_intensity === "number" ? s.emotion_intensity : s.emotion_level)
+          + "|" + (s.frozen ? 1 : 0);
+      }).join(";");
+      if (sel.dataset.sig !== sig) {
+        sel.dataset.sig = sig;
+        sel.innerHTML = "";
+        state.sessions.forEach(function (s) { sel.appendChild(sessionOption(s)); });
+      }
+      // 之前选中的会话要是已经不存在了，就退回第一个，别让选择框空着
+      var alive = state.sessions.some(function (s) { return s.key === state.session; });
+      if (!alive) state.session = state.sessions.length ? state.sessions[0].key : "";
+      if (state.session) sel.value = state.session;
+      // 下拉可能正被顶栏的搜索框过滤着：重建完按当前关键字再过一遍，
+      // 否则一刷新，筛掉的会话又全冒回来了。
+      applySessionFilter();
+      // 会话数量直接写在标签上：列表是不是全的，一眼就能看出来
+      var tag = $("session-count");
+      if (tag) {
+        if (!state.sessions.length) {
+          tag.textContent = "会话";
+        } else {
+          var dormant = state.sessions.filter(function (s) {
+            return s.active === false;
+          }).length;
+          tag.textContent = "会话 " + state.sessions.length
+            + (dormant ? ("（" + dormant + " 未激活）") : "");
+        }
+      }
+      if (!state.sessions.length) {
+        $("cur-title").textContent = "还没有任何会话";
+      }
+    });
+  }
+
+  // ---------- 情绪 ----------
+  function loadEmotion() {
+    if (!state.session) { drawChart(); return Promise.resolve(); }
+    return request("emotion", "GET", null, { session: state.session, hours: state.hours })
+      .then(function (data) {
+        state.data = data;
+        renderEmotion();
+      });
+  }
+
+  function renderEmotion() {
+    var d = state.data;
+    if (!d || !d.current) return;
+    var c = d.current;
+    $("cur-title").textContent = "此刻心情 · " + d.session.label;
+    $("cur-emoji").textContent = c.emoji;
+    $("cur-label").textContent = c.label;
+    // 右上角原来显示的是「由 PAD 长度推出来的副产物」，现在换成我们自己的强度模型：
+    // 一个可调、会衰减、冻结时会停住的独立状态（0~100%），等级也由它算。
+    $("cur-level").textContent = "强度 " + intensityPercent(c.intensity) + "%（" + c.level + "/5 " + c.level_name + "）";
+    var mo = d.mood || {};
+    $("mood-label").textContent = (mo.emoji || "🌤") + " " + (mo.label || "平静");
+    $("idle").textContent = d.idle_seconds > 60 ? "距上次说话 " + human(d.idle_seconds) : "刚刚还在说话";
+    // —— 独立的「心境」卡（G2 趋势 + G3 迷你条 + D7 起因/依据）——
+    if ($("mood-emoji")) $("mood-emoji").textContent = mo.emoji || "🌤";
+    if ($("mood-name")) $("mood-name").textContent = mo.label || "平静";
+    if ($("mood-trend")) $("mood-trend").textContent = mo.trend_text || "→ 基本稳定";
+    if ($("mood-mag")) {
+      $("mood-mag").textContent = (typeof mo.magnitude === "number" && !isNaN(mo.magnitude))
+        ? mo.magnitude.toFixed(2) : "0.00";
+    }
+    if ($("mood-since")) {
+      $("mood-since").textContent = (mo.since_ago && mo.since_ago !== "-")
+        ? ("起于 " + mo.since_ago) : "刚判定";
+    }
+    if ($("mood-reason")) $("mood-reason").textContent = mo.reason || "—";
+    // 起因那半边（心境起因）：没有就退到判定依据，右边永远不空着
+    if ($("mood-cause")) {
+      var moodCause = mo.cause_display
+        || (mo.cause ? (mo.cause + (mo.cause_ago && mo.cause_ago !== "-" ? "（" + mo.cause_ago + "）" : "")) : "");
+      $("mood-cause").textContent = moodCause || mo.reason || "—";
+    }
+    var fill = $("moodbar-fill");
+    if (fill) {
+      // 迷你条用后端**按满量程归一**的 bar：单轴拉到 ±0.6 就顶到最左/最右；
+      // 老的 score 是加权值，能量/底气拉满也只有两三成长度（到不了边）。
+      var sc = (typeof mo.bar === "number" && !isNaN(mo.bar)) ? mo.bar
+        : ((typeof mo.score === "number" && !isNaN(mo.score)) ? mo.score : 0);
+      sc = Math.max(-1, Math.min(1, sc));
+      fill.style.width = (Math.abs(sc) * 50) + "%";
+      fill.style.left = (sc >= 0 ? 50 : 50 + sc * 50) + "%";
+      fill.style.background = sc >= 0 ? "var(--ok)" : "var(--danger)";
+    }
+    // F1：起因是结构化的（文案 + 原话 + 时间）；老的纯字符串也兜得住
+    var ci = (c.cause && typeof c.cause === "object") ? c.cause
+      : { text: c.cause || "", message: "", ago: "" };
+    $("cur-cause").textContent = ci.text
+      ? (ci.text + (ci.message ? "　「" + ci.message + "」" : "")
+         + (ci.ago && ci.ago !== "刚刚" ? "　" + ci.ago : ""))
+      : "没什么特别的";
+    $("crisis").style.display = c.crisis ? "block" : "none";
+
+    $("sp").value = c.p; $("sa").value = c.a; $("sd").value = c.d;
+    // 心境三根滑杆是**偏移**语义：心境 − 心境基线（范围夹到 ±0.6）
+    // 零点是后端给的 mood_baseline（气质基线 + 配置偏移）；老数据没有它就退回 baseline。
+    // 基线怎么设只在配置页里，这里永远显示成「0 = 平时」。
+    var basePad = d.mood_baseline || d.baseline || { p: 0, a: 0, d: 0 };
+    var clampOff = function (v) { return Math.max(-0.6, Math.min(0.6, Math.round(v * 100) / 100)); };
+    if ($("smp")) $("smp").value = clampOff((mo.p || 0) - (basePad.p || 0));
+    if ($("sma")) $("sma").value = clampOff((mo.a || 0) - (basePad.a || 0));
+    if ($("smd")) $("smd").value = clampOff((mo.d || 0) - (basePad.d || 0));
+    // 心境卡右上角：离基准多远 + 大概多久回得去（半衰期对 0.10 死区）
+    if ($("mood-ops-hint")) {
+      var mag = (typeof mo.magnitude === "number" && !isNaN(mo.magnitude)) ? mo.magnitude : 0;
+      var hl = (d.params && d.params.mood_half_life) ? d.params.mood_half_life : 21600;
+      if (mo.cold) {
+        // 超基线触发中：心境正在往「冷淡」走 —— 说「预计回到基准」就是在骗人
+        $("mood-ops-hint").textContent = "偏移 " + mag.toFixed(2) + " · 很久没人找她，正慢慢变冷淡";
+      } else if (mag < 0.10) {
+        $("mood-ops-hint").textContent = "偏移 " + mag.toFixed(2) + " · 已经在基准附近";
+      } else {
+        var hours = hl * (Math.log(mag / 0.10) / Math.LN2) / 3600;
+        $("mood-ops-hint").textContent = "偏移 " + mag.toFixed(2) + " · 预计 "
+          + (hours < 1 ? Math.max(1, Math.round(hours * 60)) + " 分钟" : hours.toFixed(1) + " 小时")
+          + " 后回到基准附近";
+      }
+    }
+    $("si").value = (typeof c.intensity === "number" && !isNaN(c.intensity)) ? c.intensity : 0.3;
+    if (d.params && typeof d.params.intensity_floor === "number") {
+      $("sf").value = d.params.intensity_floor;
+    }
+    syncSliders();
+
+    $("freeze").textContent = d.frozen ? "🔥 解冻" : "🧊 冻结";
+    $("freeze").className = d.frozen ? "on" : "";
+    // 心境冻结：判定与情绪冻结一致（会话级冻结时心境同样不动，按冻着显示）
+    var moodFrozen = !!((d.mood && d.mood.frozen) || d.frozen);
+    if ($("mood-freeze")) {
+      $("mood-freeze").textContent = moodFrozen ? "🔥 解冻心境" : "🧊 冻结心境";
+      $("mood-freeze").className = moodFrozen ? "on" : "";
+    }
+
+    var note = $("curve-note");
+    if (note) {
+      // 画不出线的原因有好几种，别再用一句「还没有记录」糊过去 ——
+      // 面板上直接说清楚卡在哪一步，省得用户只能对着空白猜。
+      var mine = d.sample_count || 0;    // 本会话的采样点总数（不限时间段）
+      var all = d.sample_total || 0;     // 全部会话
+      var talked = 0;
+      (d.users || []).forEach(function (u) { talked += (u.msg_count || 0); });
+      if (d.curve_source === "samples") {
+        note.textContent = "本会话采样点 " + mine + " 个（全部会话共 " + all + " 个）";
+      } else if (d.curve_source === "history") {
+        note.textContent = "曲线由情绪事件近似还原（真实采样点从这次更新后开始积累，聊几句就会变精确）";
+      } else if (d.samples_broken) {
+        note.textContent = "⚠️ 曲线采样表没建起来，所以画不出线。去 AstrBot 日志里搜 [ai_mind]，"
+          + "会有「曲线表初始化失败」或「曲线采样表不可用」的说明。";
+      } else if (mine > 0) {
+        note.textContent = "本会话有 " + mine + " 个采样点，但都不在选中的时间段里 —— "
+          + "把上面那排时段调长一点（比如「7 天」）。";
+      } else if (all > 0) {
+        note.textContent = "本会话还没有采样点（插件一共记了 " + all + " 个）—— 在这个会话里说一句就会开始记。";
+      } else if (talked > 0) {
+        note.textContent = "这个会话聊过 " + talked + " 条，却一个采样点都没有 —— 采样没生效。"
+          + "去 AstrBot 日志里搜 [ai_mind]，把 warning 那几行发出来就能定位。";
+      } else {
+        note.textContent = "这个会话还没有任何情绪记录 —— 聊几句，或者用上面的滑块／一键改成设定一下";
+      }
+      // 到底卡在哪一步，面板上直接说清楚，别让人对着空白猜。
+      var dg = d.diag || {};
+      var dbc = d.db_check || {};
+      note.textContent += " ｜ 本次启动以来：情绪结算 " + (dg.prepares || 0) + " 次（收到 "
+        + (dg.turns || 0) + " 轮），采样调用 " + (dg.samples || 0) + " 次，写入 "
+        + (dg.writes || 0) + " 次"
+        + (dg.skipped ? ("，变化太小跳过 " + dg.skipped + " 次") : "")
+        + (dg.gated ? ("，被去重挡下 " + dg.gated + " 次") : "")
+        + (dg.frozen ? ("，会话冻结 " + dg.frozen + " 次") : "")
+        + "。情绪开关 " + (dg.emotion_enabled ? "开" : "关")
+        + "，数据库" + (dbc.write ? "可写" : "写不进去")
+        + (dbc.error ? ("（" + dbc.error + "）") : "")
+        + "，现有 " + (dbc.rows || 0) + " 行";
+      // 数据库写不进去 = 记忆、曲线、词表命中一起废。
+      // 这种事不能藏在灰色小字里。
+      var alert = $("db-alert");
+      if (alert) {
+        if (d.plugin_disabled) {
+          alert.style.display = "";
+          alert.innerHTML = "<b>⛔ 插件没有启用 —— 她根本没在运行</b>"
+            + "<div class='small' style='margin-top:6px'>" + esc(d.plugin_disabled) + "</div>";
+        } else if (dbc.write === false) {
+          alert.style.display = "";
+          alert.innerHTML = "<b>⚠️ 数据库写不进去 —— 情绪曲线、长期记忆、词表命中都不会工作</b>"
+            + "<div class='small' style='margin-top:6px'>文件：" + esc(dbc.path || "（未知）")
+            + (dbc.exists ? ("（" + (dbc.size || 0) + " 字节）") : "（文件不存在）") + "</div>"
+            + "<div class='small'>原因：" + esc(dbc.error || "未知") + "</div>"
+            + "<div class='small muted' style='margin-top:6px'>把这一段整个截图发我就能定位。</div>";
+        } else {
+          alert.style.display = "none";
+        }
+      }
+    }
+
+
+    var ev = $("events");
+    // D2 来源分层：先看「他说的」，再看「她的语气」—— 因果不再被自回读打断。
+    // A1 原话跟在起因后面（只留最近三轮，更早的后端已滚动丢弃）。
+    var SRC_ICON = { user: "💬", crisis: "⚠️", self: "🗣", idle: "🕒", manual: "🖱" };
+    var SRC_TEXT = { user: "他说的", crisis: "安全优先", self: "她自己的语气",
+                     idle: "没人理她", manual: "手动" };
+    ev.innerHTML = d.events && d.events.length ? d.events.slice().reverse().map(function (e) {
+      var delta = (e.delta[0] + e.delta[1] + e.delta[2]) / 3;
+      var arrow = delta >= 0 ? "↗" : "↘";
+      var icon = SRC_ICON[e.source] || "💬";
+      var src = SRC_TEXT[e.source] || "";
+      var quote = e.message ? '　<span class="muted">「' + esc(e.message) + '」</span>' : "";
+      return '<div class="row" style="justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line)">'
+        + '<span>' + esc(e.emoji) + " " + esc(e.label) + ' <span class="muted">' + esc(e.cause) + '</span>' + quote + '</span>'
+        + '<span class="mono muted">' + arrow + Math.abs(delta).toFixed(2)
+        + " · " + icon + (src ? " " + esc(src) : "") + " · " + fmtTime(e.t) + "</span></div>";
+    }).join("") : '<span class="muted">还没有情绪波动记录</span>';
+
+    // 最近心境事件：只记里程碑（换词 / 手动 / 重置 / 漂移），和情绪事件分开展示
+    var mev = $("mood-events");
+    if (mev) {
+      var MOOD_SRC = { label: "换词", manual: "手动", reset: "重置", drift: "漂移" };
+      var moodEvents = d.mood_events || [];
+      mev.innerHTML = moodEvents.length ? moodEvents.slice().reverse().map(function (e) {
+        var off = e.offset || [0, 0, 0];
+        return '<div class="row" style="justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line)">'
+          + '<span>' + esc(e.emoji) + " " + esc(e.label)
+          + (e.cause ? ' <span class="muted">' + esc(e.cause) + '</span>' : '') + '</span>'
+          + '<span class="mono muted">' + fmtNum(off[0]) + "/" + fmtNum(off[1]) + "/" + fmtNum(off[2])
+          + ' · ' + esc(MOOD_SRC[e.source] || e.source) + ' · ' + fmtTime(e.t) + '</span></div>';
+      }).join("") : '<span class="muted">还没有心境波动记录 —— 聊几句，或者在右下调一下心境</span>';
+    }
+
+    drawChart();
+  }
+
+  function human(sec) {
+    if (sec < 3600) return Math.round(sec / 60) + " 分钟前";
+    if (sec < 86400) return Math.round(sec / 3600) + " 小时前";
+    return Math.round(sec / 86400) + " 天前";
+  }
+
+  // ---------- 一键改成：PAD 锚点必须与后端的情绪原型完全一致 ----------
+  // 分类是「离哪个锚点近就是哪种情绪」：老版本这里写死的
+  // 「亲昵 p:0.7 a:0.35 d:-0.35」离「感动(0.8,0.4,-0.15)」更近，
+  // 于是点「亲昵」会变成感动、emoji 也不对。
+  // 现在优先用情绪包里的 prototypes（后端唯一真源，23 种全在里面），
+  // 接口没回时才退回这份快照 —— 数值与 mind/emotion/model.py 的 PROTOTYPES
+  // 一一对应，panel_check.mjs 会拿 model.py 逐个核对，写错了会红。
+  var MOOD_PRESETS_FALLBACK = [
+    { name: "平静", emoji: "🙂", p: 0.0, a: 0.0, d: 0.0 },
+    { name: "开心", emoji: "😊", p: 0.65, a: 0.45, d: 0.35 },
+    { name: "兴奋", emoji: "🤩", p: 0.7, a: 0.9, d: 0.5 },
+    { name: "满足", emoji: "😌", p: 0.5, a: -0.45, d: 0.35 },
+    { name: "亲昵", emoji: "🥰", p: 0.75, a: 0.15, d: 0.05 },
+    { name: "得意", emoji: "😎", p: 0.55, a: 0.5, d: 0.8 },
+    { name: "好奇", emoji: "🤔", p: 0.2, a: 0.6, d: 0.05 },
+    { name: "惊讶", emoji: "😲", p: 0.1, a: 0.85, d: -0.35 },
+    { name: "困惑", emoji: "😕", p: -0.1, a: 0.4, d: -0.45 },
+    { name: "害羞", emoji: "😳", p: 0.5, a: 0.6, d: -0.5 },
+    { name: "无聊", emoji: "😐", p: -0.2, a: -0.7, d: 0.0 },
+    { name: "疲惫", emoji: "😪", p: -0.25, a: -0.75, d: -0.2 },
+    { name: "寂寞", emoji: "🌙", p: -0.45, a: -0.25, d: -0.5 },
+    { name: "低落", emoji: "😔", p: -0.55, a: -0.4, d: -0.35 },
+    { name: "难过", emoji: "😢", p: -0.8, a: -0.15, d: -0.6 },
+    { name: "委屈", emoji: "🥺", p: -0.6, a: 0.3, d: -0.75 },
+    { name: "生气", emoji: "😠", p: -0.7, a: 0.8, d: 0.6 },
+    { name: "烦躁", emoji: "😤", p: -0.5, a: 0.65, d: 0.0 },
+    { name: "担心", emoji: "😰", p: -0.45, a: 0.7, d: -0.8 },
+    { name: "吃醋", emoji: "😒", p: -0.25, a: 0.55, d: -0.1 },
+    { name: "感动", emoji: "🤗", p: 0.8, a: 0.4, d: -0.15 },
+    { name: "期待", emoji: "✨", p: 0.45, a: 0.55, d: 0.1 },
+    { name: "冷淡", emoji: "😶", p: -0.35, a: -0.3, d: 0.3 }
+  ];
+
+  function moodPresets() {
+    var list = state.data && state.data.prototypes;
+    if (Object.prototype.toString.call(list) === "[object Array]" && list.length) {
+      return list;
+    }
+    return MOOD_PRESETS_FALLBACK;
+  }
+
+  function renderMoodPresets() {
+    var box = $("mood-presets");
+    if (!box) return;
+    var list = moodPresets();
+    box.innerHTML = '<span class="small muted" style="align-self:center;margin-right:4px">一键改成：</span>'
+      + list.map(function (mood, index) {
+        var tag = mood.emoji ? (mood.emoji + " ") : "";
+        return '<button class="ghost small" data-mood="' + index + '">' + tag + esc(mood.name) + "</button>";
+      }).join("");
+  }
+
+  function applyMoodPreset(index) {
+    var preset = moodPresets()[index];
+    if (!preset) return;
+    $("sp").value = preset.p;
+    $("sa").value = preset.a;
+    $("sd").value = preset.d;
+    syncSliders();
+    request("emotion/set", "POST", {
+      session: state.session, p: preset.p, a: preset.a, d: preset.d
+    }).then(function () {
+      toast("已设成「" + preset.name + "」");
+      return loadEmotion();
+    }).catch(function (e) { toast("失败：" + e.message); });
+  }
+
+  // 心境的一键改成：**心境描述词**（后端 mood_words 是唯一真源）。
+  // 和情绪那 23 个原型锚点是两回事 —— 这里点的是「底色」，提交的是 word。
+  function renderMoodWords() {
+    var box = $("mood-words");
+    if (!box) return;
+    var list = (state.data && state.data.mood_words) || [];
+    if (!list.length) { box.innerHTML = ""; return; }
+    box.innerHTML = '<span class="small muted" style="align-self:center;margin-right:4px">一键改成：</span>'
+      + list.map(function (w) {
+          return '<button class="ghost small" data-word="' + esc(w.key) + '">'
+            + (w.emoji ? esc(w.emoji) + " " : "") + esc(w.label) + "</button>";
+        }).join("");
+    box.onclick = function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("button[data-word]") : null;
+      if (!btn) return;
+      if (!state.session) { toast("先在上面选一个会话"); return; }
+      var key = btn.getAttribute("data-word");
+      request("emotion/mood", "POST", { session: state.session, word: key })
+        .then(function (res) {
+          toast("心境已设成「" + ((res && res.label) || key) + "」");
+          return refreshAll();
+        })
+        .catch(function (e) { toast("失败：" + e.message); });
+    };
+  }
+
+  function syncSliders() {
+    renderMoodPresets();
+    $("mood-presets").onclick = function (ev) {
+      var btn = ev.target.closest ? ev.target.closest("button[data-mood]") : null;
+      if (!btn) return;
+      applyMoodPreset(parseInt(btn.dataset.mood, 10));
+    };
+    ["p", "a", "d"].forEach(function (k) {
+      var v = parseFloat($("s" + k).value);
+      $("s" + k + "v").textContent = fmtNum(v, 2);
+    });
+    var rawI = parseFloat($("si").value);
+    if (isNaN(rawI)) rawI = 0;
+    $("siv").textContent = Math.round(Math.max(0, Math.min(1, rawI)) * 100) + "%";
+    var rawF = parseFloat($("sf").value);
+    if (isNaN(rawF)) rawF = 0;
+    $("sfv").textContent = Math.round(Math.max(0, Math.min(1, rawF)) * 100) + "%";
+    // 心境三根滑杆是「偏移」语义：显示带正负号的两位小数
+    //（fmtNum 自己会给正数补「+」，这里再拼一个就会出现 ++0.22）
+    ["smp", "sma", "smd"].forEach(function (k) {
+      var v = parseFloat($(k).value);
+      if (isNaN(v)) v = 0;
+      $(k + "v").textContent = fmtNum(v, 2);
+    });
+    renderMoodWords();
+  }
+
+  // 强度在链路上一律是 0~1（后端、配置、曲线都用它），面板上说百分数。
+  function intensityPercent(value) {
+    var score = (typeof value === "number" && !isNaN(value)) ? value : 0;
+    if (score > 1) score = score / 100;   // 有人习惯传 0~100，一并认下
+    return Math.round(Math.max(0, Math.min(1, score)) * 100);
+  }
+
+  // 强度曲线单独成一个函数：它由后端按**事件锚点**重建，和 PAD 采样点是两套
+  // 数据源 —— 情绪采样一条都没有（新会话 / 刚清空曲线）时，它照样画得出来。
+  function drawIntensityCurve(ctx, data, xOf, yI, color) {
+    var series = (data && data.intensity_curve) || [];
+    if (!series.length) return;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 3]);
+    ctx.beginPath();
+    series.forEach(function (pt, i) {
+      var x = xOf(pt.t), y = yI(pt.v);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    var last = series[series.length - 1];
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(xOf(last.t), yI(last.v), 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ---------- 画图 ----------
+  var chartGeom = null;
+  function drawChart() {
+    var cv = $("chart");
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth, h = cv.clientHeight;
+    cv.width = Math.max(1, Math.round(w * dpr));
+    cv.height = Math.max(1, Math.round(h * dpr));
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    var css = getComputedStyle(document.documentElement);
+    var lineColor = css.getPropertyValue("--line").trim() || "#e5e7eb";
+    var mutedColor = css.getPropertyValue("--muted").trim() || "#6b7280";
+
+    var padL = 34, padR = 34, padT = 10, padB = 22;   // padR 留给强度曲线的右轴刻度
+    var plotW = w - padL - padR, plotH = h - padT - padB;
+    var d = state.data;
+
+    var yOf = function (v) { return padT + (1 - (v + 1) / 2) * plotH; };
+    var xOf = function (t) { return padL + ((t - since) / span) * plotW; };
+    // 强度是 0~1 的独立状态，用右轴画（和 PAD 的 -1~1 不是一把尺子）
+    var yI = function (v) { return padT + (1 - Math.max(0, Math.min(1, v))) * plotH; };
+
+    var since = d && d.since ? d.since : (Date.now() / 1000 - 3600);
+    var span = (d && d.now ? d.now : Date.now() / 1000) - since || 1;
+
+    // 网格
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 1;
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.fillStyle = mutedColor;
+    [-1, -0.5, 0, 0.5, 1].forEach(function (v) {
+      var y = Math.round(yOf(v)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+      ctx.fillText(v.toFixed(1), 4, y + 3.5);
+    });
+    chartGeom = { padL: padL, padT: padT, plotW: plotW, plotH: plotH, since: since, span: span, w: w, h: h };
+
+    // ---- 强度轴（右轴 0~1）：0% 钉在最底下、100% 钉在最顶上 ----
+    // 这一段放在 PAD 曲线的「空数据早退」**之前**：情绪采样一条都没有时
+    // （新会话、刚清空曲线），强度轴和基准线也必须画出来 ——
+    // 否则基线会整块消失，看着就像「基线乱跑」。
+    var iColor = css.getPropertyValue("--i").trim() || "#10b981";
+    var floorValue = (d && d.params && typeof d.params.intensity_floor === "number")
+      ? d.params.intensity_floor : null;
+    if (floorValue !== null) {
+      var fy = Math.round(yI(floorValue)) + 0.5;
+      ctx.save();
+      ctx.strokeStyle = iColor;
+      ctx.globalAlpha = 0.6;
+      ctx.setLineDash([2, 4]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padL, fy);
+      ctx.lineTo(padL + plotW, fy);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = mutedColor;
+      var floorLabel = "基准 " + Math.round(floorValue * 100) + "%";
+      ctx.fillText(floorLabel, padL + plotW - ctx.measureText(floorLabel).width - 3, fy - 4);
+    }
+    ctx.fillStyle = mutedColor;
+    [1, 0.5, 0].forEach(function (v) {
+      var tick = Math.round(v * 100) + "%";
+      // 右对齐到画布右缘：100% 这四个字比 0.1 宽得多，固定 x 会被切掉一半
+      ctx.fillText(tick, w - ctx.measureText(tick).width - 3, yI(v) + 3.5);
+    });
+
+    if (!d || !d.curve || d.curve.length < 2) {
+      // PAD 没数据，但强度曲线是另一套数据源 —— 照样画，别让它跟着一起消失
+      drawIntensityCurve(ctx, d, xOf, yI, iColor);
+      ctx.fillStyle = mutedColor;
+      ctx.fillText("还没有曲线数据 —— 聊几句，或者在上面设一个心情", padL + 12, padT + plotH / 2);
+      return;
+    }
+
+    // 基线
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = mutedColor;
+    [["p", "baseline.p"], ["a", "baseline.a"], ["d", "baseline.d"]].forEach(function (pair) {
+      var y = Math.round(yOf(d.baseline[pair[0]])) + 0.5;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+    });
+    ctx.restore();
+
+    // 事件竖线
+    (d.events || []).forEach(function (e) {
+      if (e.t < since) return;
+      var x = Math.round(xOf(e.t)) + 0.5;
+      ctx.strokeStyle = lineColor;
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+    });
+
+    // 三条曲线
+    var series = [["p", "--p"], ["a", "--a"], ["d", "--d"]];
+    series.forEach(function (pair) {
+      ctx.strokeStyle = css.getPropertyValue(pair[1]).trim();
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      d.curve.forEach(function (pt, i) {
+        var x = xOf(pt.t), y = yOf(pt[pair[0]]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    });
+
+    // 当前点
+    var last = d.curve[d.curve.length - 1];
+    series.forEach(function (pair) {
+      ctx.fillStyle = css.getPropertyValue(pair[1]).trim();
+      ctx.beginPath();
+      ctx.arc(xOf(last.t), yOf(last[pair[0]]), 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // ---- 强度曲线（第四条线）：铺在三条 PAD 曲线之上 ----
+    drawIntensityCurve(ctx, d, xOf, yI, iColor);
+
+    // 选中十字线
+    if (state.pick && state.pick.t >= since) {
+      var px = Math.round(xOf(state.pick.t)) + 0.5;
+      ctx.strokeStyle = css.getPropertyValue("--accent").trim();
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(px, padT); ctx.lineTo(px, padT + plotH); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // 时间轴
+    ctx.fillStyle = mutedColor;
+    ctx.fillText(fmtTime(since), padL, h - 6);
+    var endLabel = fmtTime(since + span);
+    ctx.fillText(endLabel, padL + plotW - ctx.measureText(endLabel).width, h - 6);
+  }
+
+  function pointAt(clientX) {
+    var cv = $("chart");
+    if (!chartGeom || !state.data || !state.data.curve || !state.data.curve.length) return null;
+    var rect = cv.getBoundingClientRect();
+    var x = clientX - rect.left;
+    var g = chartGeom;
+    var ratio = Math.min(1, Math.max(0, (x - g.padL) / g.plotW));
+    var t = g.since + ratio * g.span;
+    var curve = state.data.curve;
+    var best = curve[0], bestDiff = Infinity;
+    for (var i = 0; i < curve.length; i++) {
+      var diff = Math.abs(curve[i].t - t);
+      if (diff < bestDiff) { bestDiff = diff; best = curve[i]; }
+    }
+    return best;
+  }
+
+  // 某个时刻的强度：从强度曲线上取最近的一点（没有就退回当前值）
+  function intensityAt(t) {
+    var series = state.data && state.data.intensity_curve;
+    if (!series || !series.length) {
+      return state.data && state.data.current ? state.data.current.intensity : 0;
+    }
+    var best = series[0], diff = Infinity;
+    for (var i = 0; i < series.length; i++) {
+      var d = Math.abs(series[i].t - t);
+      if (d < diff) { diff = d; best = series[i]; }
+    }
+    return best.v;
+  }
+
+  function showPick(pt, clientX) {
+    if (!pt) return;
+    state.pick = pt;
+    var existing = (state.data.samples || []).some(function (s) { return Math.abs(s.t - pt.t) < 2; });
+    $("pickbar").style.display = "block";
+    $("pickbar").innerHTML =
+      '<div class="row" style="justify-content:space-between">'
+      + '<span>选中 <b class="mono">' + fmtTime(pt.t) + '</b>　P <span class="mono">' + fmtNum(pt.p) + '</span>'
+      + '　A <span class="mono">' + fmtNum(pt.a) + '</span>　D <span class="mono">' + fmtNum(pt.d) + '</span>'
+      + '　强度 <b class="mono">' + intensityPercent(intensityAt(pt.t)) + '%</b></span>'
+      + '<span class="muted small">' + (existing ? "这个时刻附近有采样点" : "这是插值出来的时刻") + '</span></div>'
+      + '<div class="row" style="margin-top:8px">'
+      + '<button class="primary" data-act="update">改成当前滑块的值</button>'
+      + '<button data-act="insert">在此插入一个点</button>'
+      + '<button class="danger" data-act="delete">删除附近的点</button>'
+      + '<button class="ghost" data-act="cancel">取消</button></div>';
+    drawChart();
+  }
+
+  function pickAction(act) {
+    var pt = state.pick;
+    if (!pt) return;
+    if (act === "cancel") { state.pick = null; $("pickbar").style.display = "none"; drawChart(); return; }
+    var body = { session: state.session, action: act, t: pt.t, tolerance: 300 };
+    if (act !== "delete") {
+      body.p = parseFloat($("sp").value);
+      body.a = parseFloat($("sa").value);
+      body.d = parseFloat($("sd").value);
+    }
+    request("emotion/point", "POST", body).then(function (data) {
+      // 一次操作动的是**两套锚点**：PAD 采样点 + 强度锚点（事件里的 intensity），
+      // 所以反馈要说清两条线各动了几处（不然看着像「强度没变」）。
+      var padN = (data && (data.removed || data.changed || (data.inserted ? 1 : 0))) || 0;
+      var imN = (data && (data.removed_intensity || data.changed_intensity
+                || data.inserted_intensity)) || 0;
+      var plabel = act === "delete" ? "已删除附近的点"
+        : (act === "insert" ? "已插入点" : "已改成当前滑块的值");
+      toast(plabel + "：PAD " + padN + " 点 · 强度 " + imN + " 点");
+      state.pick = null;
+      $("pickbar").style.display = "none";
+      return refreshAll();
+    }).catch(function (e) { toast("失败：" + e.message); });
+  }
+
+  // ---------- 记忆 ----------
+  function loadMemory(retry) {
+    var query = {
+      q: $("mq").value.trim(),
+      kind: $("mkind").value,
+      // 列表跟着顶部选中的会话走：只看这个会话的记忆（外加没绑会话的通用记忆）
+      session: state.session,
+      limit: state.memLimit,
+      offset: state.memOffset
+    };
+    var flag = $("mflag").value;
+    if (flag === "sensitive") query.sensitive = 1;
+    var src = $("msrc") ? $("msrc").value : "";
+    if (src) query.source = src;
+    return request("memory", "GET", null, query).then(function (data) {
+      state.memTotal = data.total || 0;
+      if (state.memTotal <= 0) state.memOffset = 0;
+      // 删除自愈：删空最后一页之后 offset 会越过总数，
+      // 页码显示成「21-20 / 20」、列表也是空的 —— 自动退回最后一页重来。
+      if (!retry && state.memTotal > 0 && state.memOffset >= state.memTotal) {
+        state.memOffset = Math.max(
+          0, Math.floor((state.memTotal - 1) / state.memLimit) * state.memLimit
+        );
+        return loadMemory(true);
+      }
+      var st = data.stats || {};
+      $("mstats").textContent = "共 " + (st.total || 0) + " 条"
+        + " · 敏感 " + (st.sensitive || 0) + " · 已向量化 " + (st.embedded || 0)
+        + "　|　当前筛选命中 " + state.memTotal + " 条";
+      renderMemories(data.items || []);
+      var from = state.memTotal ? state.memOffset + 1 : 0;
+      var to = Math.min(state.memOffset + state.memLimit, state.memTotal);
+      $("mpage").textContent = from + "-" + to + " / " + state.memTotal;
+      $("mprev").disabled = state.memOffset <= 0;
+      $("mnext").disabled = state.memOffset + state.memLimit >= state.memTotal;
+      updateSelectionUI();
+    });
+  }
+
+  var KIND_LABEL = { fact: "事实", preference: "喜好", event: "经历", promise: "约定", relation: "关系", other: "其他" };
+  // 这条记忆是从哪儿来的 —— 一眼看清楚，比光写「该用户」有用
+  function sessionLabel(key) {
+    if (!key) return "本会话";
+    var hit = (state.sessions || []).filter(function (s) { return s.key === key; })[0];
+    if (hit && hit.label) return hit.label;
+    var parts = String(key).split(":");
+    return parts[parts.length - 1] || key;
+  }
+
+  function sourceLabel(m) {
+    if (m.scope === "user") return "来自 " + (m.owner_id || "某个用户");
+    if (m.scope === "session") return "来自 " + sessionLabel(m.session_id);
+    if (m.scope === "global") return "通用";
+    return m.scope || "";
+  }
+
+  function renderMemories(items) {
+    var box = $("mlist");
+    if (!items.length) { box.innerHTML = '<div class="empty">还没有符合条件的数据</div>'; return; }
+    box.innerHTML = items.map(function (m, index) {
+      var chips = '<span class="chip">' + esc(KIND_LABEL[m.kind] || m.kind) + "</span>"
+        + '<span class="chip">' + esc(sourceLabel(m)) + "</span>"
+        + (m.sensitive ? '<span class="chip lock">🔒 ' + esc((m.sensitive_reasons || []).join("、") || "敏感") + "</span>" : "")
+        + '<span class="chip">重要度 ' + m.importance.toFixed(2) + "</span>"
+        + (m.hit_count ? '<span class="chip">被想起 ' + m.hit_count + " 次</span>" : "")
+        + '<span class="chip">' + esc(m.source === "manual" ? "手动" : "自动抽取") + "</span>";
+      var isChecked = state.selected[m.id] ? " checked" : "";
+      // 序号 = 当前筛选结果里排第几 —— 删掉一条后面会自动往前顶，永远是连续的。
+      // 数据库 id 只在两者对不上时才跟在旁边（`/记忆 忘记 <编号>` 用的是它）。
+      var seq = state.memOffset + index + 1;
+      var idBit = (seq === m.id) ? "" : '<span class="muted" style="margin-left:4px">id ' + m.id + "</span>";
+      return '<div class="memitem" data-id="' + m.id + '" data-seq="' + seq + '">'
+        + '<div class="head">'
+        + '<input type="checkbox" class="memsel" data-id="' + m.id + '"' + isChecked + ">"
+        + '<span class="muted small mono">#' + seq + "</span>" + idBit + chips
+        + '<span class="muted small" style="margin-left:auto">' + esc(m.ago) + "</span></div>"
+        + '<div class="body">' + esc(m.content) + "</div>"
+        + '<div class="row" style="margin-top:8px">'
+        + '<button class="ghost small" data-act="edit">编辑</button>'
+        + '<button class="ghost small" data-act="del">删除</button>'
+        + "</div></div>";
+    }).join("");
+  }
+
+  function selectedIds() {
+    return Object.keys(state.selected).map(function (key) { return parseInt(key, 10); });
+  }
+
+  // 把当前页复选框的状态回写进 state.selected。
+  // 只动「这一页上有的」id：翻页之后上一页的勾选要留着，这样能跨页攒选中。
+  function syncPageSelection() {
+    var boxes = document.querySelectorAll("#mlist .memsel");
+    for (var i = 0; i < boxes.length; i++) {
+      var box = boxes[i];
+      var id = parseInt(box.dataset.id, 10);
+      if (isNaN(id)) continue;
+      if (box.checked) state.selected[id] = true;
+      else delete state.selected[id];
+    }
+  }
+
+  function updateSelectionUI() {
+    syncPageSelection();
+    var ids = selectedIds();
+    var info = $("mselinfo");
+    if (info) info.textContent = ids.length ? ("已选中 " + ids.length + " 条") : "未选中任何条目";
+    var all = $("mselectall");
+    if (!all) return;
+    var boxes = document.querySelectorAll("#mlist .memsel");
+    var checked = 0;
+    for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) checked++;
+    all.checked = boxes.length > 0 && checked === boxes.length;
+  }
+
+  function bulkAction(action, extra) {
+    var ids = selectedIds();
+    if (!ids.length) { toast("先勾选几条记忆"); return; }
+    var body = { ids: ids, action: action };
+    if (extra) Object.keys(extra).forEach(function (key) { body[key] = extra[key]; });
+    request("memory/batch", "POST", body)
+      .then(function (res) {
+        toast("已处理 " + ((res && res.affected) || 0) + " 条");
+        ids.forEach(function (id) { delete state.selected[id]; });
+        return loadMemory();
+      })
+      .catch(function (e) { toast("失败：" + e.message); });
+  }
+  // 沙箱 iframe 里 window.confirm 会被浏览器直接拦掉（静默返回 false），
+  // 代码就停在 if (!confirm(...)) return; 那一行 —— 表现是"点了没反应，也不报错"。
+  // 所以改成两步确认：第一次点给个提示，五秒内再点一次才真的执行。
+  var confirmArmed = {};
+
+  function needConfirm(key, hint) {
+    var now = Date.now();
+    if (confirmArmed[key] && now - confirmArmed[key] < 5000) {
+      delete confirmArmed[key];
+      return true;
+    }
+    confirmArmed[key] = now;
+    toast(hint || "再点一次确认");
+    return false;
+  }
+
+  function memoryAction(id, act) {
+    if (act === "del") {
+      // 提示里用列表上显示的序号（删除后会重排的那个），别拿数据库 id 吓人
+      var seqEl = document.querySelector('.memitem[data-id="' + id + '"]');
+      var seq = (seqEl && seqEl.dataset && seqEl.dataset.seq) ? seqEl.dataset.seq : String(id);
+      if (!needConfirm("mem-del-" + id, "再点一次「删除」确认删掉 #" + seq)) return;
+      request("memory/delete", "POST", { id: id }).then(function () {
+        toast("已删除 #" + seq);
+        return loadMemory();
+      }).catch(function (e) { toast("失败：" + e.message); });
+      return;
+    }
+    var box = document.querySelector('.memitem[data-id="' + id + '"]');
+    if (!box) return;
+    var body = box.querySelector(".body");
+    if (box.dataset.editing === "1") return;
+    box.dataset.editing = "1";
+    var current = body.textContent;
+    body.innerHTML = '<textarea class="memo-edit"></textarea>';
+    var ta = body.querySelector("textarea");
+    ta.value = current;
+    var bar = document.createElement("div");
+    bar.className = "row";
+    bar.style.marginTop = "6px";
+    bar.innerHTML = '<button class="primary small" data-act="save">保存</button><button class="ghost small" data-act="cancel">取消</button>';
+    body.appendChild(bar);
+    bar.querySelector('[data-act="save"]').onclick = function () {
+      request("memory/update", "POST", { id: id, content: ta.value })
+        .then(function () { toast("已保存"); return loadMemory(); })
+        .catch(function (e) { toast("失败：" + e.message); });
+    };
+    bar.querySelector('[data-act="cancel"]').onclick = function () { loadMemory(); };
+  }
+
+  // ---------- 事件绑定 ----------
+  //: 每个页签要用哪个加载函数（切过去才拉数据，省一次无用请求）
+  var VIEW_LOADERS = {
+    emotion: function () { return loadEmotion(); },
+    memory: function () { state.memOffset = 0; return loadMemory(); },
+    graph: function () { return loadGraph(); },
+    settings: function () { return loadSettings(); },
+  };
+
+  function bind() {
+    $("session").onchange = function () {
+      state.session = this.value; state.pick = null;
+      $("pickbar").style.display = "none";
+      refreshAll();
+      // 换了会话，正在看的那一页要跟着重新拉：
+      // 记忆列表和记忆图谱都只显示当前选中的会话
+      var loader = VIEW_LOADERS[state.view];
+      if (loader) {
+        Promise.resolve(loader()).catch(function () {});
+      }
+    };
+    // 会话只有一个时，点开原生下拉也是空的 —— 说一句，别让人以为是面板卡住了
+    $("session").onclick = function () {
+      if (state.sessions.length <= 1) {
+        toast(state.sessions.length
+          ? "目前只有这一个会话 —— 别的群或私聊跟她说句话，就会出现在这里"
+          : "还没发现任何会话");
+      }
+    };
+    $("refresh").onclick = function () { refreshAll().then(function () { toast("已刷新"); }); };
+    // 会话搜索：边打字边过滤下拉；输入框自带的 ✕（清空）同样走这里 → 恢复全量
+    var sessBox = $("session-search");
+    if (sessBox) sessBox.oninput = function () { applySessionFilter(); };
+
+    // ---- 备份与迁移 ----
+    // 导出：设置 + 全部记忆打成一个文件，**必须报出文件位置**（和「导出档案」一个规矩），
+    // 并把整份 JSON 填进 #bt-json —— 目标机器拷不进文件时，靠它「下载 / 复制」。
+    $("bt-export").onclick = function () {
+      toast("正在打包备份…");
+      transferResult("正在打包…", true);
+      request("transfer/export", "POST", {}).then(function (data) {
+        transferResult(transferSummary(data), true);
+        var note = $("bt-note");
+        if (note && data && data.file) note.textContent = "已导出：" + data.file;
+        var box = $("bt-json");
+        if (box && data && typeof data.bundle_text === "string" && data.bundle_text) {
+          box.value = data.bundle_text;
+          box.style.display = "";
+        }
+        toast(data && data.path ? ("已导出：" + data.file) : "导出完成（没拿到文件位置）");
+      }).catch(function (e) {
+        transferResult("导出失败：" + e.message, false);
+        toast("导出失败：" + e.message);
+      });
+    };
+    // 下载：把框里的整份 JSON 存成本地文件。沙箱 iframe 常常不给下载权限 ——
+    // 那就明确告诉用户「复制走一样能用」，不能让人以为功能坏了。
+    $("bt-download").onclick = function () {
+      var box = $("bt-json");
+      var text = String((box && box.value) || "");
+      if (!text) {
+        toast("先点「导出备份」，框里才有内容");
+        return;
+      }
+      var link = document.createElement("a");
+      if (!link || typeof link.click !== "function" || typeof URL === "undefined"
+          || !URL.createObjectURL) {
+        toast("这里不让直接下载：全选下面框里的内容复制走（Ctrl+A → Ctrl+C）");
+        return;
+      }
+      try {
+        var url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+        link.href = url;
+        link.download = "ai-mind-backup.json";
+        if (document.body && document.body.appendChild) document.body.appendChild(link);
+        link.click();
+        if (document.body && document.body.removeChild) document.body.removeChild(link);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+        toast("已开始下载 ai-mind-backup.json（没动静就复制框里的内容）");
+      } catch (err) {
+        toast("下载没成功，复制框里的内容一样能用：" + (err && err.message));
+      }
+    };
+    // 导入：来源按顺序找 —— ① 选中的文件 ② 框里粘贴的 JSON ③ exports/ 下的文件名。
+    // ①② 都不需要碰服务器磁盘，正是「别人的服务器、拷不进文件」那条路。
+    $("bt-import").onclick = function () {
+      var replace = !!($("bt-replace") && $("bt-replace").checked);
+      if (replace && !needConfirm("bt-import", "再点一次确认：先清空全部记忆，再导入备份")) return;
+      var input = $("bt-file");
+      var file = input && input.files && input.files[0];
+      if (file) {
+        transferResult("正在读文件…", true);
+        var reader = new FileReader();
+        reader.onload = function () {
+          var bundle = null;
+          try {
+            bundle = JSON.parse(String(reader.result || ""));
+          } catch (err) {
+            transferResult("文件不是合法 JSON：" + err.message, false);
+            toast("这个文件不是合法 JSON");
+            return;
+          }
+          importBundle({ bundle: bundle, mode: replace ? "replace" : "merge", confirm: replace }, "本地文件");
+        };
+        reader.onerror = function () {
+          transferResult("读不了这个文件", false);
+          toast("读不了这个文件");
+        };
+        reader.readAsText(file, "utf-8");
+        return;
+      }
+      var pasted = String(($("bt-json") && $("bt-json").value) || "").trim();
+      if (pasted) {
+        var pastedBundle = null;
+        try {
+          pastedBundle = JSON.parse(pasted);
+        } catch (err) {
+          transferResult("框里的内容不是合法 JSON：" + err.message, false);
+          toast("框里的内容不是合法 JSON");
+          return;
+        }
+        if (!pastedBundle || typeof pastedBundle !== "object") {
+          transferResult("框里的内容不是备份（顶层要是 JSON 对象）", false);
+          toast("框里的不是备份 JSON");
+          return;
+        }
+        importBundle({ bundle: pastedBundle, mode: replace ? "replace" : "merge", confirm: replace }, "粘贴");
+        return;
+      }
+      var name = String(($("bt-path") && $("bt-path").value) || "").trim();
+      if (!name) {
+        transferResult("没拿到备份：选一个文件、粘贴 JSON、或填 exports/ 下的文件名", false);
+        toast("先选文件 / 粘贴 JSON / 填文件名");
+        return;
+      }
+      importBundle({ path: name, mode: replace ? "replace" : "merge", confirm: replace }, "exports/ 文件名");
+    };
+
+    // ---- 页签 ----
+    ["emotion", "memory", "graph", "settings"].forEach(function (name) {
+      var tab = $("tab-" + name);
+      if (!tab) return;
+      tab.onclick = function () {
+        setView(name);
+        var loader = VIEW_LOADERS[name];
+        if (loader) {
+          Promise.resolve(loader()).catch(function (e) {
+            toast("加载失败：" + ((e && e.message) || e));
+          });
+        }
+      };
+    });
+
+    // ---- 情绪曲线 ----
+    var ranges = [["1 小时", 1], ["6 小时", 6], ["24 小时", 24], ["3 天", 72], ["7 天", 168], ["30 天", 720]];
+    var rb = $("range-btns");
+    rb.innerHTML = ranges.map(function (r) {
+      return '<button class="ghost small" data-h="' + r[1] + '">' + r[0] + "</button>";
+    }).join("");
+    rb.querySelectorAll("button").forEach(function (b) {
+      if (parseFloat(b.dataset.h) === state.hours) b.classList.add("on");
+      b.onclick = function () {
+        state.hours = parseFloat(b.dataset.h);
+        rb.querySelectorAll("button").forEach(function (x) { x.classList.remove("on"); });
+        b.classList.add("on");
+        loadEmotion().catch(function (e) { toast("加载失败：" + e.message); });
+      };
+    });
+
+    ["p", "a", "d"].forEach(function (k) { $("s" + k).oninput = syncSliders; });
+    // 强度滑块：拖动时只刷新本地显示，松手（change）才提交 —— 否则拖一下打几十次接口
+    // —— 调节心境：滑杆改的是**偏移**（松手才提交）+ 三个按钮 ——
+    ["smp", "sma", "smd"].forEach(function (k) { $(k).oninput = syncSliders; });
+    var postMoodOffset = function () {
+      if (!state.session) { toast("先在上面选一个会话"); return Promise.resolve(); }
+      return request("emotion/mood", "POST", {
+        session: state.session,
+        offset: {
+          p: parseFloat($("smp").value) || 0,
+          a: parseFloat($("sma").value) || 0,
+          d: parseFloat($("smd").value) || 0
+        }
+      });
+    };
+    ["smp", "sma", "smd"].forEach(function (k) {
+      $(k).onchange = function () {
+        postMoodOffset()
+          .then(function (res) {
+            toast("心境已调整：" + ((res && res.label) || ""));
+            return refreshAll();
+          })
+          .catch(function (e) { toast("失败：" + e.message); });
+      };
+    });
+    $("mood-apply").onclick = function () {
+      postMoodOffset()
+        .then(function (res) {
+          toast("已设为此刻心境：" + ((res && res.label) || ""));
+          return refreshAll();
+        })
+        .catch(function (e) { toast("失败：" + e.message); });
+    };
+    $("mood-load").onclick = function () {
+      var cur = state.data && state.data.mood;
+      var base = (state.data && (state.data.mood_baseline || state.data.baseline)) || null;
+      if (!cur) { toast("这个会话还没有心境数据"); return; }
+      base = base || { p: 0, a: 0, d: 0 };
+      var clampOff = function (v) { return Math.max(-0.6, Math.min(0.6, Math.round(v * 100) / 100)); };
+      $("smp").value = clampOff(cur.p - base.p);
+      $("sma").value = clampOff(cur.a - base.a);
+      $("smd").value = clampOff(cur.d - base.d);
+      syncSliders();
+      toast("已读取当前心境的偏移：底色 " + fmtNum(parseFloat($("smp").value), 2)
+        + " ｜ 能量 " + fmtNum(parseFloat($("sma").value), 2)
+        + " ｜ 底气 " + fmtNum(parseFloat($("smd").value), 2));
+    };
+    // 心境冻结：乐观更新 + 事后对账（和情绪冻结同一套交互）
+    $("mood-freeze").onclick = function () {
+      if (!state.session) { toast("先在上面选一个会话"); return; }
+      var to = !(state.data && ((state.data.mood && state.data.mood.frozen) || state.data.frozen));
+      $("mood-freeze").textContent = to ? "🔥 解冻心境" : "🧊 冻结心境";
+      $("mood-freeze").className = to ? "on" : "";
+      request("emotion/mood", "POST", { session: state.session, action: to ? "freeze" : "unfreeze" })
+        .then(function (res) {
+          var note = (res && res.note) ? ("（" + res.note + "）") : "";
+          toast((to ? "已冻结心境" : "已解冻心境") + note);
+          return refreshAll();
+        })
+        .catch(function (e) {
+          $("mood-freeze").textContent = to ? "🧊 冻结心境" : "🔥 解冻心境";
+          $("mood-freeze").className = to ? "" : "on";
+          toast("失败：" + e.message);
+        });
+    };
+    $("mood-reset").onclick = function () {
+      if (!needConfirm("mood-reset-op", "再点一次「重置心境」确认归零")) return;
+      request("emotion/mood", "POST", { session: state.session, action: "reset" })
+        .then(function () { toast("心境已重置"); return refreshAll(); })
+        .catch(function (e) { toast("失败：" + e.message); });
+    };
+    $("si").oninput = syncSliders;
+    // 基准值（强度衰减最低值）直接落到配置 emotion.intensity.floor，
+    // 保存后同样走「读回核对」，没存上会点名报错。
+    $("sf").oninput = syncSliders;
+    $("sf").onchange = function () {
+      var v = Math.max(0, Math.min(1, parseFloat($("sf").value) || 0));
+      request("settings/save", "POST", { values: { "emotion.intensity.floor": v } })
+        .then(function (data) {
+          var bad = (data && data.not_saved) || [];
+          if (bad.length) {
+            toast("基准值没保存上：" + bad[0].path);
+            return loadEmotion();
+          }
+          toast("强度衰减基准（最低值）已设为 " + Math.round(v * 100) + "%");
+          return loadEmotion();
+        })
+        .catch(function (e) { toast("保存失败：" + e.message); });
+    };
+    $("si").onchange = function () {
+      if (!state.session) { toast("先在上面选一个会话"); return; }
+      var value = Math.max(0, Math.min(1, parseFloat($("si").value) || 0));
+      request("emotion/intensity", "POST", { session: state.session, intensity: value })
+        .then(function () { toast("强度已调到 " + Math.round(value * 100) + "%"); return refreshAll(); })
+        .catch(function (e) { toast("失败：" + e.message); });
+    };
+
+    $("apply-set").onclick = function () {
+      request("emotion/set", "POST", {
+        session: state.session,
+        p: parseFloat($("sp").value), a: parseFloat($("sa").value), d: parseFloat($("sd").value),
+        intensity: Math.max(0, Math.min(1, parseFloat($("si").value) || 0))
+      }).then(function () { toast("已设定此刻心情（含强度）"); return refreshAll(); })
+        .catch(function (e) { toast("失败：" + e.message); });
+    };
+    $("load-cur").onclick = function () {
+      // 数据还没到：先拉一次再填，别默默什么都不做
+      var apply = function () {
+        var cur = state.data && state.data.current;
+        if (!cur) { toast("这个会话还没有情绪数据 —— 聊一句或点下面的一键改成"); return false; }
+        $("sp").value = cur.p;
+        $("sa").value = cur.a;
+        $("sd").value = cur.d;
+        $("si").value = (typeof cur.intensity === "number" && !isNaN(cur.intensity)) ? cur.intensity : 0.3;
+        syncSliders();
+        toast("已读取当前值：P " + cur.p + " ｜ A " + cur.a + " ｜ D " + cur.d
+          + " ｜ 强度 " + intensityPercent(cur.intensity) + "%");
+        return true;
+      };
+      if (state.data && state.data.current) { apply(); return; }
+      loadEmotion().then(apply).catch(function (e) { toast("失败：" + e.message); });
+    };
+    $("freeze").onclick = function () {
+      if (!state.session) { toast("先在上面选一个会话"); return; }
+      var frozen = !(state.data && state.data.frozen);
+      // 乐观更新：先把按钮文字改掉，接口回来再对账 —— 否则点了要等
+      // 一次完整刷新才看得见变化，看着就像"没反应"
+      $("freeze").textContent = frozen ? "🔥 解冻" : "🧊 冻结";
+      $("freeze").className = frozen ? "on" : "";
+      request("emotion/freeze", "POST", { session: state.session, frozen: frozen })
+        .then(function () { toast(frozen ? "已冻结情绪" : "已解冻"); return refreshAll(); })
+        .catch(function (e) {
+          $("freeze").textContent = frozen ? "🧊 冻结" : "🔥 解冻";
+          $("freeze").className = frozen ? "" : "on";
+          toast("失败：" + e.message);
+        });
+    };
+    $("reset").onclick = function () {
+      if (!needConfirm("mood-reset", "再点一次「重置情绪」确认归零")) return;
+      request("emotion/reset", "POST", { session: state.session, keep_relations: true })
+        .then(function () { toast("已重置"); return refreshAll(); })
+        .catch(function (e) { toast("失败：" + e.message); });
+    };
+    $("clear-curve").onclick = function () {
+      if (!needConfirm("curve-clear", "再点一次「清空曲线」确认删除采样点")) return;
+      request("emotion/curve/clear", "POST", { session: state.session })
+        .then(function () { toast("曲线已清空"); return refreshAll(); })
+        .catch(function (e) { toast("失败：" + e.message); });
+    };
+    // 曲线取点：点一下选中最近的时刻 → 弹出操作条（改成滑杆值 / 插点 / 删点）。
+    // 这三个函数以前是孤儿（定义了没人调），等于「拖点改历史」整个点不出来 —— 现在接上。
+    $("chart").addEventListener("click", function (ev) {
+      showPick(pointAt(ev.clientX), ev.clientX);
+    });
+    $("pickbar").addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("button[data-act]") : null;
+      if (!btn) return;
+      pickAction(btn.getAttribute("data-act"));
+    });
+
+    // ---- 长期记忆 ----
+    // 查询/翻页都必须**有返回**：不然点完像是没反应（尤其翻到头、查不到的时候）
+    function memoryPageHint() {
+      var page = Math.floor(state.memOffset / state.memLimit) + 1;
+      var pages = Math.max(1, Math.ceil(state.memTotal / state.memLimit));
+      toast(state.memTotal ? ("第 " + page + "/" + pages + " 页，共 " + state.memTotal + " 条")
+                            : "没查到记忆");
+    }
+    $("msearch").onclick = function () {
+      state.memOffset = 0;
+      loadMemory().then(memoryPageHint).catch(function (e) { toast("查询失败：" + e.message); });
+    };
+    $("mq").onkeydown = function (ev) {
+      if (ev.key === "Enter") {
+        state.memOffset = 0;
+        loadMemory().then(memoryPageHint).catch(function (e) { toast("查询失败：" + e.message); });
+      }
+    };
+    ["mkind", "mflag", "msrc"].forEach(function (id) {
+      if ($(id)) $(id).onchange = function () { state.memOffset = 0; loadMemory().then(memoryPageHint); };
+    });
+    $("mprev").onclick = function () {
+      state.memOffset = Math.max(0, state.memOffset - state.memLimit);
+      loadMemory().then(memoryPageHint).catch(function (e) { toast("翻页失败：" + e.message); });
+    };
+    $("mnext").onclick = function () {
+      if (state.memOffset + state.memLimit >= state.memTotal) { toast("已经是最后一页了"); return; }
+      state.memOffset += state.memLimit;
+      loadMemory().then(memoryPageHint).catch(function (e) { toast("翻页失败：" + e.message); });
+    };
+    $("mselectall").onchange = function () {
+      var on = this.checked;
+      document.querySelectorAll("#mlist input.memsel").forEach(function (box) {
+        box.checked = on;
+      });
+      updateSelectionUI();
+    };
+    if ($("mbulk-del")) {
+      $("mbulk-del").onclick = function () {
+        if (!needConfirm("mem-bulk-del", "再点一次「删除选中」确认")) return;
+        bulkAction("delete");
+      };
+    }
+    if ($("mbulk-global")) $("mbulk-global").onclick = function () {
+      bulkAction("scope", { scope: "global" });
+    };
+    if ($("mbulk-session")) $("mbulk-session").onclick = function () {
+      if (!state.session) { toast("先在上面选一个会话"); return; }
+      bulkAction("scope", { scope: "session", session: state.session });
+    };
+    $("mlist").onclick = function (ev) {
+      var btn = ev.target.closest ? ev.target.closest("button[data-act]") : null;
+      if (!btn) return;
+      var box = btn.closest(".memitem");
+      if (!box) return;
+      memoryAction(parseInt(box.dataset.id, 10), btn.dataset.act);
+    };
+    // 复选框点得动但没人写 state.selected 的话，批量按钮永远说「先勾选几条」。
+    // change 事件会冒泡，绑一次就能覆盖 list 每次重渲染出来的复选框。
+    $("mlist").onchange = function (ev) {
+      var box = ev.target;
+      if (!box || !box.classList || !box.classList.contains("memsel")) return;
+      var id = parseInt(box.dataset.id, 10);
+      if (isNaN(id)) return;
+      if (box.checked) state.selected[id] = true;
+      else delete state.selected[id];
+      updateSelectionUI();
+    };
+
+    $("maddbtn").onclick = function () {
+      var v = $("madd").value.trim();
+      if (v.length < 2) { toast("内容太短"); return; }
+      // 关键：新记忆绑到**当前选中的会话**上，加完立刻能在图谱里看到
+      var body = {
+        content: v,
+        kind: $("maddkind").value,
+        session: state.session,
+        importance: 0.9
+      };
+      if ($("maddglobal") && $("maddglobal").checked) body.scope = "global";
+      request("memory/add", "POST", body).then(function (res) {
+        $("madd").value = "";
+        var data = (res && res.data) || res || {};
+        toast(data.sensitive ? "已添加（判定为敏感，仅本人私聊可见）" : "已添加");
+        state.memOffset = 0;
+        return loadMemory();
+      }).catch(function (e) { toast("失败：" + e.message); });
+    };
+
+    // ---- 记忆图谱 ----
+    $("gp-kind").onchange = function () {
+      loadGraph().then(function (data) {
+        var shown = (data && data.stats && data.stats.memories_shown) || 0;
+        toast("已按类型重新加载（" + shown + " 条）");
+      }).catch(function (e) { toast("加载图谱失败：" + e.message); });
+    };
+    $("gp-reload").onclick = function () {
+      loadGraph().then(function () { toast("已重新布局"); })
+        .catch(function (e) { toast("加载图谱失败：" + e.message); });
+    };
+    // 「最多 N 条」以前改完什么都不发生（只能靠别处顺带重拉）——
+    // 现在有「应用」按钮，回车也能提交，改完立刻看得见加载结果。
+    function gpApplyLimit() {
+      var input = $("gp-limit");
+      var value = Math.round(Number(input.value));
+      if (!value || value < 10) value = 260;
+      value = Math.min(800, value);
+      input.value = value;
+      return loadGraph().then(function (data) {
+        var clusters = (data && data.stats && data.stats.clusters) || 0;
+        toast("已按最多 " + value + " 条重新加载（" + clusters + " 簇）");
+        return data;
+      });
+    }
+    $("gp-apply").onclick = function () {
+      gpApplyLimit().catch(function (e) { toast("加载图谱失败：" + e.message); });
+    };
+    $("gp-limit").onkeydown = function (ev) {
+      if (ev && ev.key === "Enter") { gpApplyLimit().catch(function (e) { toast("加载图谱失败：" + e.message); }); }
+    };
+    // 字段名是 graphSelect / graphSelected —— 写成 gpSelect/gpSelected 的话
+    // 按钮永远亮不起来、点节点也不会勾选（这个坑踩过一次，别再改回去）
+    function gpEnterSelectMode() {
+      state.graphSelect = true;
+      var btn = $("gp-select");
+      if (btn) btn.classList.add("on");
+    }
+
+    $("gp-select").onclick = function () {
+      state.graphSelect = !state.graphSelect;
+      this.classList.toggle("on", state.graphSelect);
+      if (!state.graphSelect) {
+        // 关掉多选就把已经勾上的清掉，免得动作栏还挂着看不见的选中
+        state.graphSelected = {};
+      }
+      gpRefreshSelUI();
+    };
+    $("gp-selall").onclick = function () {
+      gpEnterSelectMode();
+      state.graphSelected = {};
+      (state.graphNodes || []).forEach(function (n) { state.graphSelected[n.id] = true; });
+      gpRefreshSelUI();
+    };
+    $("gp-selnone").onclick = function () {
+      state.graphSelected = {};
+      gpRefreshSelUI();
+    };
+    // 确认放在 gpBatch 里（点两次才删）；这里再点一次会把它自己的确认用掉，
+    // 结果是永远删不掉 —— 所以这条按钮只负责转发。
+    $("gp-del").onclick = function () {
+      gpBatch("delete", null, "删除");
+    };
+
+
+    // ---- 通用配置 ----
+    // 「恢复默认」（原来叫「重新读取」）：把所有配置项一次性还原成插件出厂默认值。
+    // 两步确认（needConfirm）—— 这一下会覆盖掉所有手动改过的配置，不能手滑。
+    $("st-reload").onclick = function () {
+      if (!needConfirm("st-reset", "再点一次确认：全部配置恢复成插件默认值")) return;
+      request("settings/reset", "POST", {})
+        .then(function (data) {
+          var n = ((data && data.reset) || []).length;
+          renderSettings(data || {});
+          $("st-dirty").textContent = "已恢复默认（" + n + " 项）";
+          toast("已恢复默认（" + n + " 项）");
+          return refreshAll();
+        })
+        .catch(function (e) { toast("恢复失败：" + ((e && e.message) || e)); });
+    };
+    $("st-save").onclick = function () { saveSettings(); };
+    $("st-fold").onclick = function () {
+      var groups = $("st-groups");
+      var hidden = groups.style.display === "none";
+      groups.style.display = hidden ? "" : "none";
+      this.textContent = hidden ? "折叠" : "展开";
+    };
+
+
+    // 分组里的「折叠」按钮是 renderSettings 动态渲染出来的（data-fold），
+    // 用事件委托接一次就够：以前从来没绑过，点了完全没反应。
+    $("st-groups").onclick = function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-fold]") : null;
+      if (!btn) return;
+      var index = btn.getAttribute("data-fold");
+      var body = $("st-groups").querySelector("[data-body='" + index + "']");
+      if (!body) return;
+      var hidden = body.style.display === "none";
+      body.style.display = hidden ? "" : "none";
+      btn.textContent = hidden ? "折叠" : "展开";
+    };
+
+    // ---- 管理（并入情绪曲线页） ----
+    $("mg-reload").onclick = function () { loadManage().then(function () { toast("管理数据已刷新"); }).catch(function (e) { toast("刷新失败：" + e.message); }); };
+    $("mg-prune-samples").onclick = function () {
+      manageCall("manage/data", { action: "prune_samples", keep: Number($("mg-keep").value) || 1500 }, "压缩曲线");
+    };
+    $("mg-clear-lexicon").onclick = function () {
+      manageCall("manage/data", { action: "clear_lexicon" }, "清空词表命中");
+    };
+    $("mg-freeze").onclick = function () {
+      if (!needConfirm("mg-freeze", "再点一次确认**冻结全部会话**（情绪与强度都停住）")) return;
+      manageCall("manage/data", { action: "freeze_all" }, "冻结全部会话", true);
+    };
+    $("mg-thaw").onclick = function () {
+      manageCall("manage/data", { action: "thaw_all" }, "解冻全部会话", true);
+    };
+    if ($("mg-kind")) {
+      $("mg-kind").onchange = function () { state.mgKind = this.value; };
+    }
+    $("mg-vacuum").onclick = function () {
+      manageCall("manage/data", { action: "vacuum" }, "整理数据库");
+    };
+    $("mg-mem-session").onclick = function () {
+      if (!state.session) { toast("先在上面选一个会话"); return; }
+      if (!needConfirm("mg-mem-session", "再点一次确认清空本会话记忆")) return;
+      manageCall("manage/memory", { action: "clear_session", session: state.session }, "清空本会话记忆");
+    };
+    $("mg-mem-all").onclick = function () {
+      if (!needConfirm("mg-mem-all", "再点一次确认清空**全部**记忆")) return;
+      manageCall("manage/memory", { action: "clear_all" }, "清空全部记忆");
+    };
+    $("mg-prune").onclick = function () {
+      if (!needConfirm("mg-prune", "再点一次确认按条件清理")) return;
+      var body = { action: "prune" };
+      if ($("mg-kind")) body.kind = $("mg-kind").value;
+      body.max_importance = Number($("mg-imp").value);
+      body.never_used = $("mg-never").checked ? 1 : 0;
+      manageCall("manage/memory", body, "按条件清理");
+    };
+
+    // ---- 隐私 ----
+    $("pv-reload").onclick = function () { loadPrivacy().then(function () { toast("隐私数据已刷新"); }).catch(function (e) { toast("刷新失败：" + e.message); }); };
+    $("pv-save").onclick = function () {
+      privacyCall("privacy/save", {
+        settings: {
+          allow_self_delete: $("pv-selfdel").checked,
+          consent_required: $("pv-consent").checked,
+          allow_admin_export: $("pv-export").checked
+        }
+      }, "保存隐私设置");
+    };
+    $("pv-deny").onclick = function () {
+      privacyCall("privacy/deny", { uid: $("pv-uid").value, action: "add" }, "加入拒绝名单");
+    };
+    $("pv-allow").onclick = function () {
+      privacyCall("privacy/deny", { uid: $("pv-uid").value, action: "remove" }, "移出拒绝名单");
+    };
+    $("pv-exportbtn").onclick = function () { exportProfile(); };
+    $("pv-forget").onclick = function () {
+      if (!needConfirm("pv-forget", "再点一次确认删掉这个人的全部数据")) return;
+      privacyCall("privacy/forget", { uid: $("pv-uid").value }, "删掉这个人的数据");
+    };
+
+    window.addEventListener("resize", function () { drawChart(); });
+    if (window.AstrBotPluginPage && window.AstrBotPluginPage.onContext) {
+      window.AstrBotPluginPage.onContext(function () { setTimeout(drawChart, 30); });
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // ---------- 通用配置 ----------
+  function fmtBytes(size) {
+    var value = Number(size || 0);
+    if (value < 1024) return value + " B";
+    if (value < 1024 * 1024) return (value / 1024).toFixed(1) + " KB";
+    return (value / 1024 / 1024).toFixed(2) + " MB";
+  }
+
+  function stControl(node) {
+    var path = esc(node.path);
+    var value = node.value;
+    if (node.type === "bool") {
+      return "<input type='checkbox' data-path='" + path + "' data-kind='bool'" +
+        (value ? " checked" : "") + ">";
+    }
+    if (node.type === "int" || node.type === "float") {
+      var step = node.type === "int" ? "1" : "0.01";
+      return "<input type='number' data-path='" + path + "' data-kind='" + node.type +
+        "' step='" + step + "' value='" + esc(value == null ? "" : value) + "' style='width:140px'>";
+    }
+    if (node.options && node.options.length) {
+      var opts = node.options.map(function (opt) {
+        return "<option value='" + esc(opt) + "'" +
+          (String(value) === String(opt) ? " selected" : "") + ">" + esc(opt) + "</option>";
+      }).join("");
+      return "<select data-path='" + path + "' data-kind='string' style='min-width:140px'>" + opts + "</select>";
+    }
+    if (node.type === "list") {
+      var lines = (value || []).map(function (item) {
+        return typeof item === "string" ? item : JSON.stringify(item);
+      }).join("\n");
+      return "<textarea data-path='" + path + "' data-kind='list' style='width:100%;min-height:56px'>" +
+        esc(lines) + "</textarea>";
+    }
+    return "<input type='text' data-path='" + path + "' data-kind='string' value='" +
+      esc(value == null ? "" : value) + "' style='width:100%'>";
+  }
+
+  function stFields(fields) {
+    return (fields || []).map(function (node) {
+      if (node.children) {
+        return "<div style='margin-top:10px'><div class='small' style='font-weight:650'>" +
+          esc(node.label) + "</div>" +
+          (node.hint ? "<div class='small muted'>" + esc(node.hint) + "</div>" : "") +
+          stFields(node.children) + "</div>";
+      }
+      return "<div style='margin-top:8px'>" +
+        "<div class='row' style='gap:8px'><span class='small' style='min-width:180px'>" +
+        esc(node.label) + "</span>" + stControl(node) + "</div>" +
+        (node.hint ? "<div class='small muted' style='margin-left:188px'>" + esc(node.hint) + "</div>" : "") +
+        "</div>";
+    }).join("");
+  }
+
+  function renderSettings(data) {
+    state.settings = data || {};
+    state.settingsValues = {};
+    $("st-note").textContent = data.writable
+      ? ("共 " + (data.groups || []).length + " 组，改完记得点保存" + (data.config_file ? "（" + data.config_file + "）" : ""))
+      : "这个版本的插件配置不支持从面板回写，只能看";
+    $("st-dirty").textContent = "";
+    $("st-groups").innerHTML = (data.groups || []).map(function (group, index) {
+      return "<div class='card'><div class='row'><h3 style='margin-right:8px'>" + esc(group.label) + "</h3>" +
+        "<span class='grow'></span><button class='ghost small' data-fold='" + index + "'>折叠</button></div>" +
+        (group.hint ? "<div class='small muted' style='margin-top:6px'>" + esc(group.hint) + "</div>" : "") +
+        "<div data-body='" + index + "'>" + stFields(group.fields) + "</div></div>";
+    }).join("");
+    stSnapshot();
+  }
+
+  // 按控件的 kind 读值并归一化 —— **快照和比较必须用同一套**。
+  // 老版本快照存的是 `String(el.value)`、比较时却把 list 控件解析成数组，
+  // 于是「自定义规则」那个 textarea 永远对不上：什么都没改，点保存也提示
+  // 「已保存 1 项」。现在两边都走这里，读到什么就是什么。
+  function stValue(el) {
+    if (el.type === "checkbox") return !!el.checked;   // 复选框没 data-kind 也不会读歪
+    var kind = (el.dataset && el.dataset.kind) || "string";
+    if (kind === "bool") return !!el.checked;
+    if (kind === "int") return Math.round(Number(el.value));
+    if (kind === "float") return Number(el.value);
+    if (kind === "list") {
+      return String(el.value || "").split("\n").map(function (line) { return line.trim(); })
+        .filter(function (line) { return line.length > 0; })
+        .map(function (line) {
+          var head = line.charAt(0);
+          if (head === "{" || head === "[") { try { return JSON.parse(line); } catch (err) { return line; } }
+          return line;
+        });
+    }
+    return String(el.value == null ? "" : el.value);
+  }
+
+  function stSame(a, b) {
+    if (Array.isArray(a) || Array.isArray(b)) return JSON.stringify(a) === JSON.stringify(b);
+    return String(a) === String(b);
+  }
+
+  function stSnapshot() {
+    var nodes = document.querySelectorAll("[data-path]");
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el.dataset || !el.dataset.path) continue;
+      state.settingsValues[el.dataset.path] = stValue(el);
+    }
+  }
+
+  function stChanged() {
+    var values = {};
+    var nodes = document.querySelectorAll("[data-path]");
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var path = el.dataset ? el.dataset.path : "";
+      if (!path) continue;
+      var current = stValue(el);
+      if (!stSame(current, state.settingsValues[path])) values[path] = current;
+    }
+    return values;
+  }
+
+  function loadSettings() {
+    return request("settings", "GET").then(function (data) {
+      renderSettings(data);
+      return data;
+    });
+  }
+
+  function saveSettings() {
+    var values = stChanged();
+    var count = Object.keys(values).length;
+    if (!count) { toast("没有改动"); return; }
+    $("st-dirty").textContent = "正在保存 " + count + " 项…";
+    request("settings/save", "POST", { values: values })
+      .then(function (data) {
+        // 后端逐项读回核对过：没写进去的必须点名，不能默默弹回
+        var bad = (data && data.not_saved) || [];
+        renderSettings(data);
+        if (bad.length) {
+          var names = bad.map(function (item) { return item.path; }).join("、");
+          $("st-dirty").textContent = "⚠️ " + bad.length + " 项没保存上（其余 " +
+            (count - bad.length) + " 项已生效）：" + names;
+          toast("没保存上：" + names);
+          return refreshAll();
+        }
+        $("st-dirty").textContent = "已保存 " + count + " 项（读回核对通过），立刻生效";
+        toast("设置已保存（" + count + " 项）");
+        return refreshAll();
+      })
+      .catch(function (e) {
+        $("st-dirty").textContent = "保存失败，改动还在页面上";
+        toast("保存失败：" + e.message);
+      });
+  }
+
+  // ---------- 管理 ----------
+  function renderManage(data) {
+    state.manage = data || {};
+    var stats = data.stats || {};
+    var memory = stats.memory || {};
+    $("mg-note").textContent = data.session
+      ? ("当前会话：" + data.session + (data.frozen ? "（已冻结）" : ""))
+      : "还没有任何会话";
+    var chips = [
+      ["记忆", memory.total || 0],
+      ["常驻", memory.pinned || 0],
+      ["敏感", memory.sensitive || 0],
+      ["本会话记忆", data.session_memories || 0],
+      ["会话", stats.sessions || 0],
+      ["曲线采样", stats.samples || 0],
+      ["词表命中", stats.lexicon_hits || 0]
+    ].map(function (pair) {
+      return "<span class='chip'>" + pair[0] + " <b>" + pair[1] + "</b></span>";
+    }).join(" ");
+    $("mg-stats").innerHTML = chips;
+    $("mg-db").textContent = "数据库 " + fmtBytes(stats.db_bytes || 0) +
+      " · 冻结中的会话 " + (stats.frozen || 0) + " 个";
+
+    var kinds = ["", ].concat(data.kinds || []);
+    var labels = data.kind_labels || {};
+    $("mg-kind").innerHTML = kinds.map(function (kind) {
+      return "<option value='" + esc(kind) + "'>" + esc(kind ? (labels[kind] || kind) : "全部类型") + "</option>";
+    }).join("");
+    // 每次刷新都会重建这个下拉：不把用户刚选的类型放回去，它就会弹回「全部类型」
+    var picked = (state.mgKind || "");
+    if (kinds.indexOf(picked) < 0) picked = "";
+    $("mg-kind").value = picked;
+    if (!state.mgKind) state.mgKind = "";
+  }
+
+  function loadManage() {
+    return request("manage", "GET", null, { session: state.session }).then(function (data) {
+      renderManage(data);
+      return data;
+    });
+  }
+
+  function manageCall(path, body, label, refreshPanels) {
+    request(path, "POST", body || {}).then(function (data) {
+      var extra = "";
+      if (data && data.sessions !== undefined) extra = "，" + data.sessions + " 个会话";
+      else if (data && data.removed !== undefined) extra = "，影响 " + data.removed + " 条";
+      $("mg-result").textContent = label + "完成" + extra;
+      toast(label + "完成" + extra);
+      return loadManage().then(function () {
+        // 冻结/解冻要让顶部会话下拉的 🧊 也跟着换
+        if (refreshPanels) return refreshAll();
+      });
+    }).catch(function (e) {
+      $("mg-result").textContent = label + "失败：" + e.message;
+      toast(label + "失败：" + e.message);
+    });
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // ---------- 记忆图谱 ----------
+  var GRAPH_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6",
+                      "#ef4444", "#14b8a6", "#f97316", "#06b6d4"];
+
+  function gpNodeColor(node) {
+    if (node.type === "memory") return GRAPH_COLORS[(node.cluster - 1 + GRAPH_COLORS.length) % GRAPH_COLORS.length];
+    if (node.type === "keyword") return "#9aa3b2";
+    if (node.type === "user") return "#f59e0b";
+    return "#3b82f6";
+  }
+
+  function gpRadius(node) {
+    if (node.type === "memory") return 3.2 + Math.max(0, node.weight) * 5.5;
+    if (node.type === "keyword") return 2.2 + Math.min(3, Math.log(1 + (node.data.count || 1)) * 1.4);
+    return 6.5;
+  }
+
+  function gpSeed(nodes, width, height) {
+    var buckets = {};
+    nodes.forEach(function (node) {
+      var key = node.cluster || 0;
+      (buckets[key] = buckets[key] || []).push(node);
+    });
+    var keys = Object.keys(buckets).sort(function (a, b) {
+      return buckets[b].length - buckets[a].length;
+    });
+    keys.forEach(function (key, index) {
+      var members = buckets[key];
+      var angle = (index / Math.max(1, keys.length)) * Math.PI * 2;
+      var spread = index === 0 ? 0 : Math.min(width, height) * (0.20 + (index % 3) * 0.08);
+      var cx = width / 2 + Math.cos(angle) * spread;
+      var cy = height / 2 + Math.sin(angle) * spread;
+      members.forEach(function (node, i) {
+        var a = (i / members.length) * Math.PI * 2;
+        var r = 8 + (i % 5) * 5;
+        node.x = cx + Math.cos(a) * r;
+        node.y = cy + Math.sin(a) * r;
+        node.vx = 0;
+        node.vy = 0;
+      });
+    });
+  }
+
+  function gpLayout(nodes, links, width, height) {
+    gpSeed(nodes, width, height);
+    var index = {};
+    nodes.forEach(function (node) { index[node.id] = node; });
+    var k = Math.sqrt((width * height) / Math.max(1, nodes.length)) * 0.55;
+    var steps = nodes.length > 220 ? 140 : 220;
+    for (var step = 0; step < steps; step++) {
+      var alpha = 1 - step / steps;
+      for (var i = 0; i < nodes.length; i++) {
+        var a = nodes[i];
+        for (var j = i + 1; j < nodes.length; j++) {
+          var b = nodes[j];
+          var dx = a.x - b.x;
+          var dy = a.y - b.y;
+          var d2 = dx * dx + dy * dy;
+          if (d2 > k * k * 10) continue;
+          if (d2 < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 0.5; }
+          var dist = Math.sqrt(d2);
+          var force = (k * k) / d2 * alpha * 0.85;
+          var fx = (dx / dist) * force;
+          var fy = (dy / dist) * force;
+          a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+        }
+      }
+      links.forEach(function (link) {
+        var a = index[link.source];
+        var b = index[link.target];
+        if (!a || !b) return;
+        var dx = b.x - a.x;
+        var dy = b.y - a.y;
+        var d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        var force = (d - k * 0.85) / d * alpha * 0.055;
+        a.vx += dx * force; a.vy += dy * force;
+        b.vx -= dx * force; b.vy -= dy * force;
+      });
+      nodes.forEach(function (node) {
+        node.vx += (width / 2 - node.x) * 0.005 * alpha;
+        node.vy += (height / 2 - node.y) * 0.005 * alpha;
+        node.x += Math.max(-32, Math.min(32, node.vx));
+        node.y += Math.max(-32, Math.min(32, node.vy));
+        node.vx *= 0.80;
+        node.vy *= 0.80;
+        node.x = Math.max(18, Math.min(width - 18, node.x));
+        node.y = Math.max(18, Math.min(height - 18, node.y));
+      });
+    }
+  }
+
+  function drawGraph() {
+    var canvas = $("graph");
+    var ctx = canvas.getContext("2d");
+    var rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { width: 800, height: 460 };
+    var dpr = window.devicePixelRatio || 1;
+    var width = rect.width || 800;
+    var height = rect.height || 460;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    var style = getComputedStyle(document.body);
+    var line = style.getPropertyValue("--line") || "#e5e7eb";
+    var muted = style.getPropertyValue("--muted") || "#6b7280";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    var view = state.graphView || { scale: 1, x: 0, y: 0 };
+    state.graphView = view;
+    ctx.save();
+    ctx.translate(view.x, view.y);
+    ctx.scale(view.scale, view.scale);
+
+    // 网格
+    ctx.strokeStyle = line;
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1 / view.scale;
+    for (var gx = 0; gx < width; gx += 48) {
+      ctx.beginPath(); ctx.moveTo(gx, -200); ctx.lineTo(gx, height + 200); ctx.stroke();
+    }
+    for (var gy = 0; gy < height; gy += 48) {
+      ctx.beginPath(); ctx.moveTo(-200, gy); ctx.lineTo(width + 200, gy); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    var index = state.graphIndex || {};
+    (state.graphEdges || []).forEach(function (edge) {
+      var a = index[edge.source];
+      var b = index[edge.target];
+      if (!a || !b) return;
+      ctx.strokeStyle = edge.kind === "has" ? muted : line;
+      ctx.globalAlpha = edge.kind === "has" ? 0.22 : 0.30;
+      ctx.lineWidth = (edge.kind === "has" ? 0.7 : 1.1) / view.scale;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+
+    // 簇的范围圈
+    (state.graphClusters || []).forEach(function (cluster) {
+      var members = (state.graphNodes || []).filter(function (node) {
+        return node.cluster === cluster.id && node.type === "memory";
+      });
+      if (members.length < 3) return;
+      var cx = 0, cy = 0;
+      members.forEach(function (node) { cx += node.x; cy += node.y; });
+      cx /= members.length; cy /= members.length;
+      var radius = 0;
+      members.forEach(function (node) {
+        radius = Math.max(radius, Math.sqrt((node.x - cx) * (node.x - cx) + (node.y - cy) * (node.y - cy)));
+      });
+      radius += 26;
+      ctx.strokeStyle = GRAPH_COLORS[(cluster.id - 1 + GRAPH_COLORS.length) % GRAPH_COLORS.length];
+      ctx.globalAlpha = 0.35;
+      ctx.setLineDash([4 / view.scale, 5 / view.scale]);
+      ctx.lineWidth = 1 / view.scale;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.font = (11 / view.scale) + "px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(cluster.name + " · " + cluster.size, cx, cy - radius - 6 / view.scale);
+      ctx.globalAlpha = 1;
+      // 记下来，多选模式下点这个圈就能整簇选中
+      (state.graphClusterHit = state.graphClusterHit || []).push(
+        { id: cluster.id, cx: cx, cy: cy, r: radius }
+      );
+    });
+
+    (state.graphNodes || []).forEach(function (node) {
+      var radius = gpRadius(node);
+      ctx.fillStyle = gpNodeColor(node);
+      ctx.globalAlpha = node.type === "keyword" ? 0.55 : 0.9;
+      ctx.beginPath();
+      if (node.type === "user") {
+        ctx.rect(node.x - radius, node.y - radius, radius * 2, radius * 2);
+      } else if (node.type === "session") {
+        ctx.moveTo(node.x, node.y - radius);
+        ctx.lineTo(node.x + radius, node.y + radius);
+        ctx.lineTo(node.x - radius, node.y + radius);
+        ctx.closePath();
+      } else {
+        ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      var selected = state.graphSelected && state.graphSelected[node.id];
+      if (selected || node === state.graphPicked) {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = selected ? "#10b981" : "#ef4444";
+        ctx.lineWidth = (selected ? 2.4 : 2) / view.scale;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    });
+    ctx.restore();
+  }
+
+  function gpHitTest(sx, sy) {
+    var view = state.graphView || { scale: 1, x: 0, y: 0 };
+    var wx = (sx - view.x) / view.scale;
+    var wy = (sy - view.y) / view.scale;
+    var best = null;
+    var bestDist = 1e9;
+    (state.graphNodes || []).forEach(function (node) {
+      var dx = node.x - wx;
+      var dy = node.y - wy;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < gpRadius(node) + 4 && dist < bestDist) { best = node; bestDist = dist; }
+    });
+    return best;
+  }
+
+  function gpSelectedIds() {
+    return Object.keys(state.graphSelected || {}).map(function (key) {
+      var num = Number(String(key).replace("m:", ""));
+      return isNaN(num) ? 0 : num;
+    }).filter(function (num) { return num > 0; });
+  }
+
+  function gpRefreshSelUI() {
+    var count = gpSelectedIds().length;
+    $("gp-selcount").textContent = state.graphSelect
+      ? (count ? ("已选 " + count + " 条记忆") : "多选模式：点节点勾选，点簇圈整簇选中")
+      : "点节点看详情；开多选后点节点即可勾选，点簇圈可以整簇选中";
+    $("gp-actions").style.display = count ? "" : "none";
+    $("gp-select").classList.remove("on");
+    if (state.graphSelect) $("gp-select").classList.add("on");
+    drawGraph();
+  }
+
+  function gpToggleSelect(nodeId) {
+    state.graphSelected = state.graphSelected || {};
+    if (state.graphSelected[nodeId]) delete state.graphSelected[nodeId];
+    else state.graphSelected[nodeId] = true;
+    gpRefreshSelUI();
+  }
+
+  function gpClusterAt(sx, sy) {
+    var view = state.graphView || { scale: 1, x: 0, y: 0 };
+    var wx = (sx - view.x) / view.scale;
+    var wy = (sy - view.y) / view.scale;
+    var hits = state.graphClusterHit || [];
+    for (var i = hits.length - 1; i >= 0; i--) {
+      var item = hits[i];
+      var dx = item.cx - wx;
+      var dy = item.cy - wy;
+      if (Math.sqrt(dx * dx + dy * dy) <= item.r) return item;
+    }
+    return null;
+  }
+
+  function gpSelectCluster(clusterId) {
+    var added = 0;
+    (state.graphNodes || []).forEach(function (node) {
+      if (node.type !== "memory" || node.cluster !== clusterId) return;
+      state.graphSelected = state.graphSelected || {};
+      if (!state.graphSelected[node.id]) added += 1;
+      state.graphSelected[node.id] = true;
+    });
+    gpRefreshSelUI();
+    if (added) toast("选中了这一簇的 " + added + " 条");
+  }
+
+  function gpBatch(action, extra, label) {
+    var ids = gpSelectedIds();
+    if (!ids.length) { toast("先选几条"); return; }
+    if (action === "delete" &&
+        !needConfirm("gp-del", "再点一次确认：删掉选中的 " + ids.length + " 条记忆")) return;
+    var body = { action: action, ids: ids };
+    Object.keys(extra || {}).forEach(function (key) { body[key] = extra[key]; });
+    request("memory/batch", "POST", body).then(function (data) {
+      toast(label + " " + (data.affected || 0) + " 条");
+      state.graphSelected = {};
+      return loadGraph();
+    }).catch(function (e) { toast(label + "失败：" + e.message); });
+  }
+
+  function gpShowDetail(node) {
+    if (!node) {
+      $("gp-detail").innerHTML = "点图上的任意一个实心圆，这里会显示它的内容、类型和来源。";
+      return;
+    }
+    if (node.type !== "memory") {
+      $("gp-detail").innerHTML = "<b>" + esc(node.label) + "</b>（" +
+        esc(node.type === "keyword" ? "关键词" : node.type === "user" ? "人" : "会话") + "）";
+      return;
+    }
+    var d = node.data || {};
+    $("gp-detail").innerHTML =
+      "<div class='memitem'><div class='body'>" + esc(d.content || node.label) + "</div>" +
+      "<div class='head' style='margin-top:6px'>" +
+      "<span class='chip'>" + esc(KIND_LABEL[d.kind] || d.kind || "其他") + "</span>" +
+      "<span class='chip'>" + esc(sourceLabel({ scope: d.scope, owner_id: d.owner, session_id: d.session })) + "</span>" +
+      "<span class='chip'>重要度 " + (d.importance == null ? "-" : d.importance) + "</span>" +
+      "<span class='chip'>被想起 " + (d.hits || 0) + " 次</span>" +
+      (d.pinned ? "<span class='chip pin'>常驻</span>" : "") +
+      (d.sensitive ? "<span class='chip lock'>敏感</span>" : "") +
+      "</div>" +
+      "<div class='small muted' style='margin-top:4px'>会话 " + esc(d.session || "—") +
+      " · 归属 " + esc(d.owner || "—") + "</div></div>";
+  }
+
+  function renderGraph(data) {
+    state.graph = data || {};
+    var nodes = (data.nodes || []).map(function (node) {
+      return Object.assign({}, node);
+    });
+    var edges = (data.edges || []).map(function (edge) {
+      return Object.assign({}, edge);
+    });
+    var stats = data.stats || {};
+    $("gp-stats").innerHTML = [
+      ["总记忆", stats.memories_total || 0],
+      ["图上", stats.memories_shown || 0],
+      ["节点", stats.nodes || 0],
+      ["关系", stats.edges || 0],
+      ["簇", stats.clusters || 0],
+      ["活跃会话", stats.sessions || 0]
+    ].map(function (pair) {
+      return "<span class='chip'>" + pair[0] + " <b>" + pair[1] + "</b></span>";
+    }).join(" ");
+    $("gp-note").textContent = nodes.length
+      ? ("关键词当桥自动聚成 " + (stats.clusters || 0) + " 簇")
+      : "还没有记忆可以画 —— 先聊几句，或者去「长期记忆」手动加一条";
+    state.graphNodes = nodes;
+    state.graphEdges = edges;
+    state.graphClusters = data.clusters || [];
+    state.graphIndex = {};
+    state.graphPicked = null;
+    state.graphClusterHit = [];
+    state.graphSelected = {};
+    state.graphView = { scale: 1, x: 0, y: 0 };
+    nodes.forEach(function (node) { state.graphIndex[node.id] = node; });
+    var canvas = $("graph");
+    var rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { width: 800, height: 460 };
+    gpLayout(nodes, edges, rect.width || 800, rect.height || 460);
+    drawGraph();
+    gpShowDetail(null);
+  }
+
+
+  // 画布交互：拖节点、平移、缩放、悬停提示、点选。
+  // 这些必须有绑定 —— 否则图能画出来，但拖不动、点不中、鼠标放上去也没提示。
+
+  // 图谱的「选人」下拉：人从当前画出来的记忆里来
+  function gpBindCanvas() {
+    var canvas = $("graph");
+    if (!canvas || canvas.__aiMindBound || !canvas.addEventListener) return;
+    canvas.__aiMindBound = true;
+
+    var drag = null;          // {node, dx, dy, moved} 或 {pan:true, x, y, vx, vy}
+    var pointers = {};        // 触摸点（双指捏合用）
+    var pinch = null;
+
+    function pos(ev) {
+      var rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect()
+        : { left: 0, top: 0, width: 800, height: 460 };
+      return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+    }
+
+    function zoomTo(scale, ax, ay) {
+      var view = state.graphView || { scale: 1, x: 0, y: 0 };
+      scale = Math.max(0.25, Math.min(4, scale));
+      // 让 (ax, ay) 这个画布点缩放后还停在原地
+      view.x = ax - (ax - view.x) * (scale / view.scale);
+      view.y = ay - (ay - view.y) * (scale / view.scale);
+      view.scale = scale;
+      state.graphView = view;
+      drawGraph();
+    }
+
+    function tip(node, p) {
+      var el = $("gp-tip");
+      if (!el) return;
+      if (!node) { el.style.display = "none"; return; }
+      var d = node.data || {};
+      var title = node.type === "memory" ? (d.content || node.label) : node.label;
+      var kind = node.type === "memory" ? (KIND_LABEL[d.kind] || d.kind || "记忆")
+        : node.type === "keyword" ? "关键词"
+        : node.type === "user" ? "人" : "会话";
+      el.innerHTML = "<b>" + esc(kind) + "</b><br>" + esc(String(title || "").slice(0, 60));
+      el.style.display = "block";
+      var left = Math.min(p.x + 14, (canvas.clientWidth || 600) - 12);
+      el.style.left = Math.max(4, left) + "px";
+      el.style.top = Math.max(4, p.y + 14) + "px";
+    }
+
+    canvas.addEventListener("pointerdown", function (ev) {
+      if (pointers[ev.pointerId] != null) return;
+      pointers[ev.pointerId] = pos(ev);
+      var ids = Object.keys(pointers);
+      if (ids.length === 2) {
+        var a = pointers[ids[0]], b = pointers[ids[1]];
+        pinch = {
+          d: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+          scale: (state.graphView || { scale: 1 }).scale,
+          cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2,
+          view: { x: (state.graphView || { x: 0 }).x, y: (state.graphView || { y: 0 }).y }
+        };
+        drag = null;
+        return;
+      }
+      if (ids.length > 2) return;
+      try { canvas.setPointerCapture && canvas.setPointerCapture(ev.pointerId); } catch (e) {}
+      var p = pos(ev);
+      var node = gpHitTest(p.x, p.y);
+      if (node) {
+        if (state.graphSelect) { gpToggleSelect(node.id); return; }
+        state.graphPicked = node;
+        gpShowDetail(node);
+        var view = state.graphView || { scale: 1, x: 0, y: 0 };
+        drag = { node: node, dx: (p.x - view.x) / view.scale - node.x,
+                       dy: (p.y - view.y) / view.scale - node.y, moved: false };
+        drawGraph();
+        return;
+      }
+      var cluster = gpClusterAt(p.x, p.y);
+      if (cluster && state.graphSelect) { gpSelectCluster(cluster.id); return; }
+      // 空白处：平移
+      var v = state.graphView || { scale: 1, x: 0, y: 0 };
+      drag = { pan: true, x: p.x, y: p.y, vx: v.x, vy: v.y, moved: false };
+    });
+
+    canvas.addEventListener("pointermove", function (ev) {
+      var id = ev.pointerId;
+      if (pinch && pointers[id] != null) {
+        pointers[id] = pos(ev);
+        var ids = Object.keys(pointers);
+        if (ids.length >= 2) {
+          var a = pointers[ids[0]], b = pointers[ids[1]];
+          var d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+          var view = state.graphView;
+          var scale = Math.max(0.25, Math.min(4, pinch.scale * (d / pinch.d)));
+          view.x = pinch.cx - (pinch.cx - pinch.view.x) * (scale / pinch.scale);
+          view.y = pinch.cy - (pinch.cy - pinch.view.y) * (scale / pinch.scale);
+          view.scale = scale;
+          drawGraph();
+        }
+        return;
+      }
+      if (pointers[id] != null) pointers[id] = pos(ev);
+      var p = pos(ev);
+      if (drag) {
+        var view = state.graphView || { scale: 1, x: 0, y: 0 };
+        if (drag.node) {
+          drag.node.x = (p.x - view.x) / view.scale - drag.dx;
+          drag.node.y = (p.y - view.y) / view.scale - drag.dy;
+          drag.moved = true;
+        } else if (drag.pan) {
+          view.x = drag.vx + (p.x - drag.x);
+          view.y = drag.vy + (p.y - drag.y);
+          state.graphView = view;
+          drag.moved = true;
+        }
+        drawGraph();
+        return;
+      }
+      // 悬停提示
+      tip(gpHitTest(p.x, p.y), p);
+    });
+
+    function release(ev) {
+      if (pointers[ev.pointerId] != null) delete pointers[ev.pointerId];
+      if (Object.keys(pointers).length < 2) pinch = null;
+      if (drag && !drag.moved && !drag.pan) {
+        state.graphPicked = drag.node;
+        gpShowDetail(drag.node);
+      }
+      drag = null;
+    }
+    canvas.addEventListener("pointerup", release);
+    canvas.addEventListener("pointercancel", release);
+    canvas.addEventListener("pointerleave", function () {
+      if (!drag) { var el = $("gp-tip"); if (el) el.style.display = "none"; }
+    });
+
+    canvas.addEventListener("wheel", function (ev) {
+      if (!state.graphNodes || !state.graphNodes.length) return;
+      ev.preventDefault();
+      var p = pos(ev);
+      var view = state.graphView || { scale: 1, x: 0, y: 0 };
+      var next = view.scale * (ev.deltaY < 0 ? 1.12 : 1 / 1.12);
+      zoomTo(next, p.x, p.y);
+    }, { passive: false });
+  }
+
+  function gpFillSelects() {
+    var kinds = [["", "全部类型"]].concat(Object.keys(KIND_LABEL).map(function (key) {
+      return [key, KIND_LABEL[key]];
+    }));
+    $("gp-kind").innerHTML = kinds.map(function (pair) {
+      return "<option value='" + esc(pair[0]) + "'>" + esc(pair[1]) + "</option>";
+    }).join("");
+  }
+
+  function loadGraph() {
+    return request("graph", "GET", null, {
+      kind: $("gp-kind").value,
+      // 图谱跟着顶部选中的会话走：只画这个会话的记忆（外加没绑会话的通用记忆）
+      session: state.session,
+      limit: Number($("gp-limit").value) || 260
+    }).then(function (data) {
+      renderGraph(data);
+      return data;
+    });
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // 五个页签的显隐/高亮只有这一处，免得以后再加页签时漏掉某个视图。
+
+  // ---------- 备份与迁移 ----------
+  // 结果行统一走这里（写 #bt-result），按钮自己负责 toast。
+  function transferResult(text, ok) {
+    var box = $("bt-result");
+    if (box) box.textContent = text;
+    return !!ok;
+  }
+
+  function transferSummary(data) {
+    var counts = (data && data.counts) || {};
+    var line = "导出完成：记忆 " + (counts.memories || 0) + " 条（通用 "
+      + (counts.global || 0) + "、绑会话 " + (counts.sessions || 0)
+      + "）· 设置 " + (counts.settings || 0) + " 项 · "
+      + ((data && data.bytes) || 0) + " 字节";
+    if (data && data.path) line += " → " + data.path;
+    if (data && data.bundle_text) {
+      line += " ｜ 下面框里是完整 JSON：点「下载到本地」，或直接复制走";
+    }
+    return line;
+  }
+
+  function importDone(data, source) {
+    var settings = (data && data.settings) || {};
+    var mem = (data && data.memories) || {};
+    var verify = (data && data.verify) || {};
+    var dormant = mem.dormant || {};
+    var line = "导入" + ((data && data.ok) ? "完成" : "没通过核对")
+      + "：记忆 +" + (mem.added || 0) + "（重复 " + (mem.duplicates || 0)
+      + "，现在共 " + (mem.total || 0) + "）· 设置 " + (settings.applied || 0) + " 项";
+    if ((settings.skipped || []).length) {
+      line += " · 跳过 " + settings.skipped.length + " 项（不认识或类型对不上）";
+    }
+    if (verify.missing) {
+      line += " · 少了 " + verify.missing + " 条：" + (verify.missing_sample || []).join("、");
+    }
+    if (dormant.memories) {
+      line += " · 待激活 " + dormant.memories + " 条（" + (dormant.sessions_total || 0)
+        + " 个会话这台机器还没聊过 —— 存着不丢，聊到就自动读）";
+    }
+    if (source) line += "（来源：" + source + "）";
+    transferResult(line, true);
+    toast((data && data.ok)
+      ? ("导入完成：+" + (mem.added || 0) + " 条记忆、" + (settings.applied || 0) + " 项设置")
+      : "导入没通过核对，看卡片里那行说明");
+    // 导进来的设置和数据要重新拉一遍，否则页面上还是旧的
+    loadSettings().catch(function () {});
+    refreshAll().catch(function () {});
+    loadManage().catch(function () {});
+  }
+
+  function importBundle(body, source) {
+    transferResult("正在导入…" + (source ? "（来源：" + source + "）" : ""), true);
+    request("transfer/import", "POST", body)
+      .then(function (data) { importDone(data, source); })
+      .catch(function (e) {
+        transferResult("导入失败：" + e.message, false);
+        toast("导入失败：" + e.message);
+      });
+  }
+
+  // ---------- 隐私与数据 ----------
+  function renderPrivacy(data) {
+    state.privacy = data || {};
+    var settings = data.settings || {};
+    $("pv-selfdel").checked = settings.allow_self_delete !== false;
+    $("pv-consent").checked = !!settings.consent_required;
+    $("pv-export").checked = settings.allow_admin_export !== false;
+    var denied = data.denied || [];
+    $("pv-note").textContent = denied.length
+      ? ("拒绝名单 " + denied.length + " 人")
+      : "拒绝名单是空的";
+    $("pv-denied").innerHTML = denied.length
+      ? denied.map(function (item) {
+          return "<span class='chip lock'>" + esc(item) + "</span>";
+        }).join(" ")
+      : "<span class='small muted'>没有人在拒绝名单里。</span>";
+    if (data.uid && data.summary) {
+      var s = data.summary;
+      $("pv-result").textContent = data.uid + " 目前留下：记忆 " + (s.memories || 0) +
+        " 条 · 关系 " + (s.relations || 0) + " 处 · 情绪记录 " +
+        (s.lexicon_hits || 0) + " 条";
+    }
+    if (!$("pv-uid").value && data.uid) $("pv-uid").value = data.uid;
+  }
+
+
+  function loadPrivacy() {
+    return request("privacy", "GET", null, { session: state.session, uid: $("pv-uid").value })
+      .then(function (data) { renderPrivacy(data); return data; });
+  }
+
+
+  function privacyCall(path, body, label) {
+    request(path, "POST", body).then(function (data) {
+      // 先刷新再写结果：loadPrivacy 会把 pv-result 覆盖成「…目前留下…」，
+      // 顺序反了的话提示一闪就没，看着就像「点了没反应」。
+      return loadPrivacy().then(function () {
+        var saved = (data && data.saved) || [];
+        $("pv-result").textContent = saved.length
+          ? (label + "完成（已保存：" + saved.join("、") + "）")
+          : (label + "完成");
+        toast(label + "完成");
+      });
+    }).catch(function (e) {
+      $("pv-result").textContent = label + "失败：" + e.message;
+      toast(label + "失败：" + e.message);
+    });
+  }
+
+  // 导出档案：一定要**给出文件位置**。老版本只回一句「完成」，
+  // 东西在哪儿、写没写成全都不知道 —— 现在把路径、大小、预览一起摆出来。
+  function exportProfile() {
+    var uid = String($("pv-uid").value || "").trim();
+    if (!uid) {
+      $("pv-result").textContent = "要先填：导出谁的档案（用户 ID）";
+      toast("先填用户 ID 再导出");
+      return;
+    }
+    $("pv-result").textContent = "正在导出…";
+    request("privacy/export", "POST", { uid: uid }).then(function (data) {
+      return loadPrivacy().then(function () {
+        var path = (data && data.path) || "";
+        var counts = "记忆 " + ((data && data.memories) || 0) + " 条 · 关系 " +
+          ((data && data.relations) || 0) + " 条";
+        var box = $("pv-json");
+        if (box) {
+          var head = path
+            ? ("# 文件位置：" + path + "\n# 大小：" + ((data && data.bytes) || 0) + " 字节\n")
+            : "# 没拿到文件位置\n";
+          var bodyText = "";
+          try { bodyText = JSON.stringify((data && data.archive) || {}, null, 2); }
+          catch (err) { bodyText = ""; }
+          if (bodyText.length > 6000) bodyText = bodyText.slice(0, 6000) + "\n…（预览截断，完整内容在上面那个文件里）";
+          box.value = head + bodyText;
+          box.style.display = "";
+        }
+        $("pv-result").textContent = path
+          ? ("导出完成（" + counts + "） → 文件：" + path)
+          : ("导出完成（" + counts + "），但接口没回文件位置 —— 去日志里看 [ai_mind] 导出");
+        toast(path ? ("已导出：" + path) : "导出完成（没拿到位置）");
+      });
+    }).catch(function (e) {
+      $("pv-result").textContent = "导出失败：" + e.message;
+      toast("导出失败：" + e.message);
+    });
+  }
+
+
+  function setView(name) {
+    var views = {
+      emotion: "view-emotion", memory: "view-memory",
+      graph: "view-graph", settings: "view-settings",
+          };
+    Object.keys(views).forEach(function (key) {
+      var view = $(views[key]);
+      var isCurrent = (key === name);
+      if (view) {
+        view.style.display = isCurrent ? "" : "none";
+        if (view.classList) {
+          view.classList.remove("view-in");
+          if (isCurrent) {
+            void view.offsetWidth;   // 强制重排，否则动画不会重放
+            view.classList.add("view-in");
+          }
+        }
+      }
+      var tab = $("tab-" + key);
+      if (!tab) return;
+      if (isCurrent) {
+        tab.classList.add("on");
+        // 页签栏在窄屏上是横向滚动的，切过去之后把它带进视野
+        if (tab.scrollIntoView) {
+          try {
+            tab.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+          } catch (e) {
+            tab.scrollIntoView(false);
+          }
+        }
+      } else {
+        tab.classList.remove("on");
+      }
+    });
+    state.view = name;
+  }
+
+  function refreshAll() {
+    return loadSessions()
+      .then(loadEmotion)
+      .catch(function (e) {
+        var msg = (e && e.message) ? e.message : String(e);
+        toast("加载失败：" + (msg.length > 48 ? msg.slice(0, 48) + "…" : msg));
+        // 探测阶段的诊断更完整，别被这里的短消息覆盖掉
+        if (!apiBroken) setStatus("加载失败 —— " + msg, true);
+      });
+  }
+
+  bind();
+  gpFillSelects();
+  gpBindCanvas();
+  // 一次把会话、情绪、配置都拉起来；别的页签等切过去再按需加载
+  refreshAll().then(function () {
+    loadSettings().catch(function () {});
+    loadManage().catch(function () {});
+    loadPrivacy().catch(function () {});
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>
+
