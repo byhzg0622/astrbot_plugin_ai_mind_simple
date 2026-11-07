@@ -2,7 +2,7 @@ name: astrbot_plugin_ai_mind
 display_name: AI 心智 · 情绪与记忆（精简版）
 short_desc: 会演化的情绪 + 长期记忆 + 记忆图谱
 desc: 精简版只保留三块核心：情绪按 PAD 三维模型随对话演化并自然衰减，长期记忆按常驻、最近、相关三路检索注入，记忆图谱把记忆铺成可交互的关系图。敏感信息只在本人私聊出现，识别到自伤轻生信号会转入认真关心。零第三方依赖。
-version: v2.1
+version: v1.0.0
 author: 挽风随行+DSH(主代码编写)、冰与火之歌
 astrbot_version: ">=4.5,<5"
 pages:

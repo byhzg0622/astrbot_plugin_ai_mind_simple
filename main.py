@@ -255,8 +255,8 @@ SEND_UNKNOWN = "unknown"
 
 PLUGIN_NAME = "astrbot_plugin_ai_mind"
 PLUGIN_AUTHOR = "挽风随行+DSH(主代码编写)、冰与火之歌"
-#: 插件版本（注册、备份文件、README/CHANGELOG 用的是同一个号；两段式：主.次）
-PLUGIN_VERSION = "2.1"
+#: 插件版本（注册、备份文件、README/CHANGELOG 用的是同一个号）
+PLUGIN_VERSION = "1.0.0"
 #: 面板接口的备用命名空间。
 #: 刻意用 ASCII 而不是署名 —— 宿主会把它拼进 URL，中文和括号要转义，
 #: 很容易被解析成别的路径（面板接口之前就是这么坏过一次的）。
@@ -2573,7 +2573,7 @@ class AIMindPlugin(Star):
             "uid": uid,
             "exported_at": time.time(),
             "plugin": PLUGIN_NAME,
-            "version": "v2.2.0",
+            "version": "v1.0.0",
             "memories": [],
             "relations": [],
         }
