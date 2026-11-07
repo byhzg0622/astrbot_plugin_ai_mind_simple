@@ -177,7 +177,7 @@
 
 ## 更新日志
 
-逐版变更见 [CHANGELOG.md](CHANGELOG.md)，当前 **v2.1**。
+逐版变更见 [CHANGELOG.md](CHANGELOG.md)，当前 **v1.0.0**。
 
 ---
 
