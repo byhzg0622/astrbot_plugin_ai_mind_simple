@@ -1,0 +1,2 @@
+# astrbot_plugin_ai_mind_simple
+astrbot中ai_mind插件的精简化版本
