@@ -1,0 +1,675 @@
+{
+  "enabled": {
+    "description": "总开关",
+    "type": "bool",
+    "default": true,
+    "hint": "关掉后情绪与记忆都不再介入对话；面板仍然可以查看已有数据。"
+  },
+  "emotion": {
+    "description": "情绪",
+    "type": "object",
+    "hint": "让她拥有会自己涨落、会记仇也会记好的心情。",
+    "items": {
+      "enabled": {
+        "description": "总开关",
+        "type": "bool",
+        "default": true,
+        "hint": "关掉后插件完全不介入对话，但已有的情绪状态仍会保留在磁盘上。"
+      },
+      "persona": {
+        "description": "情绪基调",
+        "type": "object",
+        "hint": "只管心情停在哪里、怎么涨落；不涉及她怎么说话 —— 说话方式一律由机器人自己的提示词决定。",
+        "items": {
+          "bot_name": {
+            "description": "角色名",
+            "type": "string",
+            "default": "",
+            "hint": "只用于面板显示与注入时的自我指代，留空则用“她”。"
+          },
+          "custom_temperament": {
+            "description": "手动指定气质基线",
+            "type": "bool",
+            "default": false,
+            "hint": "打开后下面的三个数值才会生效；关闭时用内置的默认气质基线，推荐保持关闭。"
+          },
+          "temperament": {
+            "description": "气质基线（没事时心情停在哪里）",
+            "type": "object",
+            "items": {
+              "pleasure": {
+                "description": "愉悦基线 P",
+                "type": "float",
+                "default": 0.08,
+                "hint": "-1 ~ 1"
+              },
+              "arousal": {
+                "description": "唤醒基线 A",
+                "type": "float",
+                "default": 0.22,
+                "hint": "-1 ~ 1"
+              },
+              "dominance": {
+                "description": "掌控基线 D",
+                "type": "float",
+                "default": 0.3,
+                "hint": "-1 ~ 1"
+              }
+            }
+          },
+          "custom_rules": {
+            "description": "自定义情绪规则",
+            "type": "list",
+            "default": [],
+            "hint": "每行一条，格式：关键词1|关键词2 => P,A,D => 说明。只定义情绪冲击与情绪标签，不含说话方式（旧格式里的第三段好感度数字会被自动跳过）。"
+          }
+        }
+      },
+      "dynamics": {
+        "description": "情绪动力学",
+        "type": "object",
+        "items": {
+          "custom_values": {
+            "description": "手动指定衰减参数",
+            "type": "bool",
+            "default": false,
+            "hint": "关闭时使用内置默认参数（推荐保持关闭）。"
+          },
+          "emotion_half_life": {
+            "description": "即时情绪半衰期（秒）",
+            "type": "int",
+            "default": 240,
+            "hint": "越小情绪退得越快。240 秒 ≈ 4 分钟后当前情绪强度减半。"
+          },
+          "mood_half_life": {
+            "description": "心境半衰期（秒）",
+            "type": "int",
+            "default": 21600,
+            "hint": "心境是被情绪长期带偏的那一层，衰减慢得多。21600 秒 = 6 小时（原 1.5 小时的话，3 小时就散干净了，算不上「长期心境」）。"
+          },
+          "mood_live_window_minutes": {
+            "description": "心境推进的对话窗口（分钟）",
+            "type": "int",
+            "default": 30,
+            "hint": "最近这段时间内有互动，心境才持续朝「最近一次互动时的情绪」靠拢；窗口过了就只按半衰期回落。留空/0 = 一直推进（情绪会把心境拖回基线，半衰期基本失效）。"
+          },
+          "mood_label_hold_seconds": {
+            "description": "心境换词驻留（秒）",
+            "type": "int",
+            "default": 300,
+            "hint": "心境的新词要连续待够这么久才正式替换，期间沿用旧词 —— 一段对话里心境不会来回抖。0 = 立刻换。"
+          },
+          "mood_baseline": {
+            "description": "心境基线（相对气质基线的偏移）",
+            "type": "object",
+            "hint": "心境平时停在哪里 = 气质基线 + 下面三个偏移。只在配置页设，情绪曲线页不放它的控件 —— 页面上的「平静」、迷你条中点、三根滑杆的 0 位都跟着它走，所以调完页面看起来一切正常。三个都填 0 = 和气质基线完全一致。",
+            "items": {
+              "p": {
+                "description": "心境基线偏移 P（底色）",
+                "type": "float",
+                "default": 0.0,
+                "hint": "-0.6 ~ 0.6，相对气质基线；0 = 平时就停在气质基线上"
+              },
+              "a": {
+                "description": "心境基线偏移 A（能量）",
+                "type": "float",
+                "default": 0.0,
+                "hint": "-0.6 ~ 0.6，相对气质基线；0 = 平时就停在气质基线上"
+              },
+              "d": {
+                "description": "心境基线偏移 D（底气）",
+                "type": "float",
+                "default": 0.0,
+                "hint": "-0.6 ~ 0.6，相对气质基线；0 = 平时就停在气质基线上"
+              }
+            }
+          },
+          "mood_cold": {
+            "description": "超基线（相对心境基线的偏移）",
+            "type": "object",
+            "hint": "很长时间没人找她时，心境会被慢慢拉向这里 —— 默认方向就是「冷淡」。什么时候开始拉，由下面的「超基线触发时长」决定。",
+            "items": {
+              "p": {
+                "description": "超基线偏移 P（底色）",
+                "type": "float",
+                "default": -0.3,
+                "hint": "-1 ~ 1，默认 -0.30 —— 冷淡的底色是「不太好」"
+              },
+              "a": {
+                "description": "超基线偏移 A（能量）",
+                "type": "float",
+                "default": -0.12,
+                "hint": "-1 ~ 1，默认 -0.12 —— 提不起劲"
+              },
+              "d": {
+                "description": "超基线偏移 D（底气）",
+                "type": "float",
+                "default": 0.35,
+                "hint": "-1 ~ 1，默认 +0.35 —— 有底气的冷淡（不是委屈低落）"
+              }
+            }
+          },
+          "mood_cold_after_minutes": {
+            "description": "超基线的触发时长（分钟）",
+            "type": "int",
+            "default": 360,
+            "hint": "心境要在基线（平静）上连续待够这么久、且这段时间没有对话，才开始往超基线（冷淡）走；触发后再过大约一个半小时就会读到「冷淡」。默认 360 = 6 小时。填 0 = 关掉超基线。"
+          },
+          "mood_coupling": {
+            "description": "情绪对心境的带动比例",
+            "type": "float",
+            "default": 0.1,
+            "hint": "0 ~ 1。越大越“记仇/记好”，一次刺激就能改变长期心境。"
+          },
+          "max_delta": {
+            "description": "单条消息能造成的最大情绪冲击",
+            "type": "float",
+            "default": 0.62,
+            "hint": "0.05 ~ 1。防止一句话把情绪直接打满。"
+          }
+        }
+      },
+      "intensity": {
+        "description": "情绪强度（含衰减策略）",
+        "type": "object",
+        "hint": "强度是**可单独调节的主动产物**：面板上有滑块能直接调它，会话冻结时它跟着一起冻住，平时按下面的策略自己衰减 —— 不再只是从情绪数值里算出来的副产物。",
+        "items": {
+          "decay": {
+            "description": "衰减策略",
+            "type": "string",
+            "default": "exponential",
+            "options": [
+              "exponential",
+              "linear",
+              "off"
+            ],
+            "hint": "exponential = 指数衰减（每过一个半衰期，与目标的差距减半，最像自然消退）；linear = 线性衰减（一个半衰期内等速回到目标）；off = 不自动衰减，只涨不落。"
+          },
+          "half_life": {
+            "description": "强度半衰期（秒）",
+            "type": "int",
+            "default": 900,
+            "hint": "指数衰减下，每过这么久强度与目标的差距减半；线性衰减下就是「回到目标要多久」。900 秒 = 15 分钟。"
+          },
+          "floor": {
+            "description": "强度衰减最低值（基准值）",
+            "type": "float",
+            "default": 0.15,
+            "hint": "0 ~ 1。强度只会往这个值回落，不会掉到 0 —— 它就是曲线上的「基准线」（面板上画成绿色虚线，也可以直接在情绪曲线页的「基准值」滑块上改）。没数据的时段曲线也按它填。"
+          },
+          "gain": {
+            "description": "情绪冲击带来的强度增量",
+            "type": "float",
+            "default": 0.55,
+            "hint": "0 ~ 2。每次情绪波动会按冲击大小抬高强度：越大越容易被点着，也越经得起衰减。"
+          },
+          "default": {
+            "description": "新会话的初始强度",
+            "type": "float",
+            "default": 0.3,
+            "hint": "0 ~ 1。新会话与「重置情绪」之后停在这里。"
+          }
+        }
+      },
+      "appraisal": {
+        "description": "情绪评估",
+        "type": "object",
+        "hint": "一条消息怎么变成情绪波动：手写规则优先，中文情感词汇本体兜底。",
+        "items": {
+          "lexicon": {
+            "description": "用中文情感词汇本体兜底",
+            "type": "bool",
+            "default": true,
+            "hint": "手写规则没覆盖到的日常表达（「心累」「美滋滋」「有点忐忑」……）由这张 7 大类 21 小类的词表接住。它只在规则一条都没命中时生效，而且冲击力明显更弱，不会盖过你精心写的规则。"
+          },
+          "lexicon_gain": {
+            "description": "兜底的冲击力倍率",
+            "type": "float",
+            "default": 0.25,
+            "hint": "0.05 ~ 1。手写规则大约是它的 3~4 倍。调大她会对日常话更敏感，调小就更依赖你自己的规则。"
+          }
+        }
+      },
+      "injection": {
+        "description": "注入方式",
+        "type": "object",
+        "items": {
+          "mode": {
+            "description": "情绪状态注入位置",
+            "type": "string",
+            "default": "content_part",
+            "options": [
+              "content_part",
+              "system_prompt",
+              "both"
+            ],
+            "hint": "content_part = 作为本轮用户消息的附加上下文（推荐，不破坏 system prompt 缓存）；system_prompt = 直接追加到系统提示词；both = 两边都放。"
+          },
+          "verbosity": {
+            "description": "注入详细程度",
+            "type": "string",
+            "default": "normal",
+            "options": [
+              "lite",
+              "normal",
+              "rich"
+            ],
+            "hint": "lite 只给情绪词与强度；normal 附带数值与起因；rich 再附上最近的情绪波动。三档都只报心情，不涉及说话方式。"
+          },
+          "inject_rules": {
+            "description": "注入情绪扮演规则",
+            "type": "bool",
+            "default": true,
+            "hint": "一段固定不变的说明，声明“情绪只提供心情，不规定你怎么说话，也不改人设”。关闭可以完全不动 system prompt。"
+          },
+          "trusted": {
+            "description": "情绪块放进「系统级受信任位」",
+            "type": "bool",
+            "default": true,
+            "hint": "放在 System Prompt 之后、用户消息之前（ProviderRequest.contexts）。关掉就退回原来的方式（追加到本轮用户消息），但那样用户自己就能覆盖或伪造这些内容。"
+          },
+          "with_trace": {
+            "description": "总是附带最近情绪波动",
+            "type": "bool",
+            "default": false,
+            "hint": "让模型知道自己“刚才还在气头上”，连贯性更好，代价是提示词变长。"
+          }
+        }
+      },
+      "expression": {
+        "description": "情绪自表达回读",
+        "type": "object",
+        "items": {
+          "self_feedback": {
+            "description": "回读方式",
+            "type": "string",
+            "default": "heuristic",
+            "options": [
+              "heuristic",
+              "tag",
+              "off"
+            ],
+            "hint": "heuristic = 从她自己刚说的话里反推情绪（完全不进提示词）；tag = 只在模型输出 <emotion>害羞</emotion> 时回读；off = 关闭。"
+          },
+          "self_feedback_gain": {
+            "description": "回读强度",
+            "type": "float",
+            "default": 0.22,
+            "hint": "0 ~ 1。越小越保守，只做轻微的情绪一致性强化。"
+          },
+          "style_hold_seconds": {
+            "description": "情绪标签保持时长（秒）",
+            "type": "int",
+            "default": 300,
+            "hint": "规则明确声明的情绪（例如“他生病了”→担心）会盖过几何计算结果，持续这段时间。只影响情绪标签，与说话方式无关。"
+          }
+        }
+      },
+      "idle": {
+        "description": "长时间没人说话",
+        "type": "object",
+        "items": {
+          "enabled": {
+            "description": "启用空闲情绪",
+            "type": "bool",
+            "default": true
+          },
+          "threshold_minutes": {
+            "description": "多久算“很久没说话”（分钟）",
+            "type": "int",
+            "default": 180,
+            "hint": "超过这个时长后，她下次开口前会先有点空落落、带一点被晾着的不爽。"
+          },
+          "max_effect": {
+            "description": "空闲情绪的最大影响",
+            "type": "float",
+            "default": 0.3,
+            "hint": "0 ~ 0.8。"
+          }
+        }
+      },
+      "safety": {
+        "description": "安全优先",
+        "type": "object",
+        "items": {
+          "crisis_detection": {
+            "description": "自伤 / 轻生信号检测",
+            "type": "bool",
+            "default": true,
+            "hint": "强烈建议保持开启。命中后会临时压下一切玩笑与角色化语气，强制进入认真关心模式。规则式检测会有漏判，不能替代真正的危机干预。"
+          },
+          "hold_minutes": {
+            "description": "安全模式持续时间（分钟）",
+            "type": "int",
+            "default": 10,
+            "hint": "这段时间内她会一直保持认真、温和的语气。"
+          }
+        }
+      }
+    }
+  },
+  "memory": {
+    "description": "长期记忆",
+    "type": "object",
+    "hint": "记住你是谁、你喜欢什么、你正在经历什么。",
+    "items": {
+      "enabled": {
+        "description": "总开关",
+        "type": "bool",
+        "default": true,
+        "hint": "关掉后不再抽取也不再注入，已存下的记忆会保留在磁盘上。"
+      },
+      "capture": {
+        "description": "对话采集",
+        "type": "object",
+        "items": {
+          "batch_turns": {
+            "description": "攒够几轮对话抽取一次",
+            "type": "int",
+            "default": 6,
+            "hint": "越大越省 token，但记下来得越晚。6 轮是比较平衡的值。"
+          },
+          "idle_flush_seconds": {
+            "description": "静默多久后抽取",
+            "type": "int",
+            "default": 180,
+            "hint": "聊到一半停了，等这么久就把手上攒的内容先整理掉，不用等满 batch_turns。"
+          },
+          "max_turns_kept": {
+            "description": "单个会话最多缓存多少轮",
+            "type": "int",
+            "default": 40,
+            "hint": "防止长时间抽取失败时内存无限增长。"
+          },
+          "min_turn_chars": {
+            "description": "多短的消息不值得记",
+            "type": "int",
+            "default": 4
+          }
+        }
+      },
+      "extract": {
+        "description": "记忆抽取",
+        "type": "object",
+        "items": {
+          "provider_id": {
+            "description": "用哪个模型做抽取",
+            "type": "string",
+            "default": "",
+            "_special": "select_provider",
+            "hint": "留空 = 用当前会话正在用的模型。建议挑一个便宜快速的小模型，抽取不需要太强的能力。"
+          },
+          "max_items_per_batch": {
+            "description": "每批最多抽取几条",
+            "type": "int",
+            "default": 6,
+            "hint": "限制单次抽取的产出，防止模型一口气写一大堆琐事。"
+          },
+          "include_assistant": {
+            "description": "抽取时带上 AI 的回复",
+            "type": "bool",
+            "default": true,
+            "hint": "有上下文判断更准；关掉可以再省一点 token。"
+          },
+          "extra_instructions": {
+            "description": "额外的抽取要求",
+            "type": "text",
+            "default": "",
+            "hint": "会追加到抽取提示词里。例如：注意记录他提到的所有日期和约定。"
+          },
+          "dedup_threshold": {
+            "description": "判定为重复的相似度阈值",
+            "type": "float",
+            "default": 0.6,
+            "hint": "0.2 ~ 0.98。越高越容易产生重复条目，越低越容易把两件不同的事合并掉。"
+          },
+          "user_label": {
+            "description": "聊天记录里对方的称呼",
+            "type": "string",
+            "default": "对方"
+          },
+          "bot_label": {
+            "description": "聊天记录里 AI 的称呼",
+            "type": "string",
+            "default": "你"
+          }
+        }
+      },
+      "retrieval": {
+        "description": "记忆检索",
+        "type": "object",
+        "items": {
+          "pinned_limit": {
+            "description": "常驻档案条数",
+            "type": "int",
+            "default": 12,
+            "hint": "名字、生日、称呼、长期爱好这类记忆每轮都会带上，这里限制最多带几条。"
+          },
+          "recent_limit": {
+            "description": "最近发生的条数",
+            "type": "int",
+            "default": 5
+          },
+          "recent_max_age_days": {
+            "description": "「最近发生」的时间窗（天）",
+            "type": "int",
+            "default": 14,
+            "hint": "超过这个天数的记忆不再无条件带上，必须靠关键词或语义被检索到。"
+          },
+          "relevant_limit": {
+            "description": "按相关度召回几条",
+            "type": "int",
+            "default": 4
+          },
+          "min_relevant_score": {
+            "description": "相关度最低门槛",
+            "type": "float",
+            "default": 0.22,
+            "hint": "调高 = 只想起最确定的，调低 = 更容易想起旧事但可能有噪声。"
+          },
+          "scan_limit": {
+            "description": "单次最多扫描多少条",
+            "type": "int",
+            "default": 1500
+          },
+          "recency_half_life_days": {
+            "description": "新鲜度半衰期（天）",
+            "type": "int",
+            "default": 30,
+            "hint": "越久之前的记忆，在打分里占的新鲜度越低。"
+          },
+          "weight_lexical": {
+            "description": "词法相关度权重",
+            "type": "float",
+            "default": 0.6
+          },
+          "weight_semantic": {
+            "description": "语义相关度权重",
+            "type": "float",
+            "default": 0.35,
+            "hint": "只有打开「向量检索」时才生效，关闭时会自动归零。"
+          },
+          "weight_recency": {
+            "description": "新鲜度权重",
+            "type": "float",
+            "default": 0.25
+          },
+          "weight_importance": {
+            "description": "重要度权重",
+            "type": "float",
+            "default": 0.15
+          },
+          "max_inject_chars": {
+            "description": "注入记忆的最大长度",
+            "type": "int",
+            "default": 1400,
+            "hint": "超过就按行截断，避免把提示词撑爆。"
+          }
+        }
+      },
+      "embedding": {
+        "description": "向量检索（可选升级）",
+        "type": "object",
+        "items": {
+          "enabled": {
+            "description": "启用向量检索",
+            "type": "bool",
+            "default": false,
+            "hint": "打开后，词法匹配不到但意思相近的旧记忆也能被想起来（例如「想喝杯咖啡」能想起「他喜欢喝冰美式」）。需要先在 WebUI 里配好一个 Embedding 服务提供商。"
+          },
+          "provider_id": {
+            "description": "用哪个 Embedding 提供商",
+            "type": "string",
+            "default": "",
+            "hint": "留空 = 自动用第一个已配置的 Embedding 提供商；也可以填提供商 ID。"
+          },
+          "timeout_seconds": {
+            "description": "向量请求超时（秒）",
+            "type": "int",
+            "default": 3,
+            "hint": "向量服务慢或挂掉时，会自动退回纯词法检索，不会卡住回复。"
+          }
+        }
+      },
+      "privacy": {
+        "description": "隐私",
+        "type": "object",
+        "items": {
+          "scan_sensitive": {
+            "description": "识别敏感信息",
+            "type": "bool",
+            "default": true,
+            "hint": "强烈建议保持开启。命中证件号、手机号、住址、学校、密码等特征的记忆会被标成🔒，永久限定为只在本人私聊里出现，绝不进群聊。"
+          },
+          "private_memory_in_group": {
+            "description": "群聊里也带上私聊记忆",
+            "type": "bool",
+            "default": false,
+            "hint": "默认关闭。打开后，当他本人在群里说话时，私聊里知道的非敏感记忆也会带上（并附上「别主动说出来」的提示）。敏感信息无论如何都不会进群。"
+          },
+          "group_scope": {
+            "description": "群里学到的记忆的作用域",
+            "type": "string",
+            "default": "session",
+            "options": [
+              "session",
+              "user",
+              "global"
+            ],
+            "hint": "session = 只在这个群里可用（推荐）；user = 该用户在任何会话可用；global = 所有会话可用。"
+          },
+          "private_scope": {
+            "description": "私聊学到的记忆的作用域",
+            "type": "string",
+            "default": "user",
+            "options": [
+              "session",
+              "user",
+              "global"
+            ],
+            "hint": "user = 只在该用户出现时可用（推荐）。"
+          }
+        }
+      },
+      "injection": {
+        "description": "注入方式",
+        "type": "object",
+        "items": {
+          "mode": {
+            "description": "记忆注入位置",
+            "type": "string",
+            "default": "content_part",
+            "options": [
+              "content_part",
+              "system_prompt",
+              "both"
+            ],
+            "hint": "content_part = 作为本轮用户消息的附加上下文（推荐，不破坏 system prompt 缓存）。"
+          },
+          "inject_rules": {
+            "description": "注入记忆行为准则",
+            "type": "bool",
+            "default": true,
+            "hint": "一段固定不变的说明（不要编造、不要念出来、别每条都提），写进 system_prompt，不会破坏提示词缓存。"
+          }
+        }
+      }
+    }
+  },
+  "panel": {
+    "description": "心智面板",
+    "type": "object",
+    "hint": "在 WebUI 的「插件 → AI 心智 · 情绪与记忆（精简版） → 页面」里打开的可视化面板。",
+    "items": {
+      "curve_hours": {
+        "description": "默认展示最近多少小时的情绪曲线",
+        "type": "int",
+        "default": 72,
+        "hint": "面板上可以随时切换 1 小时 ~ 30 天。"
+      },
+      "heartbeat_seconds": {
+        "description": "曲线心跳采样间隔（秒）",
+        "type": "int",
+        "default": 300,
+        "hint": "就算没有情绪事件，也按这个间隔打点，曲线上才看得见「自己衰减回基线」的过程。"
+      },
+      "sample_epsilon": {
+        "description": "采样灵敏度",
+        "type": "float",
+        "default": 0.004,
+        "hint": "变化小于这个幅度就不采样，避免曲线被噪声填满。想让曲线更细腻就调小。"
+      },
+      "curve_max_points": {
+        "description": "每个会话保留多少曲线点",
+        "type": "int",
+        "default": 3000,
+        "hint": "超出后丢最旧的。按每 5 分钟一个点算，3000 个点大约够 10 天。"
+      }
+    }
+  },
+  "commands": {
+    "description": "指令",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "description": "启用聊天里的指令",
+        "type": "bool",
+        "default": true
+      },
+      "admin_only_mutations": {
+        "description": "改动类操作仅限管理员",
+        "type": "bool",
+        "default": true,
+        "hint": "影响 /情绪 重置、/情绪 设定、/记忆 清空。"
+      }
+    }
+  },
+  "advanced": {
+    "description": "高级",
+    "type": "object",
+    "items": {
+      "save_interval": {
+        "description": "情绪落盘间隔（秒）",
+        "type": "int",
+        "default": 60
+      },
+      "maintenance_interval": {
+        "description": "后台维护间隔（秒）",
+        "type": "int",
+        "default": 20
+      },
+      "debug_log": {
+        "description": "输出调试日志",
+        "type": "bool",
+        "default": false,
+        "hint": "想看每批记住了什么、每次触发了什么情绪就打开它。"
+      },
+      "cache_friendly": {
+        "description": "省 token：让前缀缓存能命中",
+        "type": "bool",
+        "default": true,
+        "hint": "情绪、记忆这些每轮都会变的内容默认贴在消息最后，前面的 System Prompt 和历史记录保持不动 —— DeepSeek / OpenAI 的前缀缓存才能命中，命中部分便宜很多也快很多。关掉就退回旧位置。"
+      }
+    }
+  }
+}
